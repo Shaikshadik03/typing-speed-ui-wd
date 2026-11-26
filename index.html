@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KeySprout | Typing Practice</title>
+<style>
+:root{color-scheme:light;--ink:#17362b;--green:#216448;--mint:#d9f5dd;--line:#cbded1;--muted:#50695d}
+*{box-sizing:border-box}
+body{margin:0;background:#eff7ef;color:var(--ink);font:16px/1.5 system-ui,sans-serif}
+main{max-width:760px;margin:auto;padding:24px 16px 40px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;font-weight:800}
+header span:first-child{font-size:1.35rem}
+header span:last-child{color:var(--green);font-size:.85rem}
+.hero{background:#193b30;color:#fff;border-radius:24px;padding:22px 24px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.hero p{margin:0;color:#d2efda}
+.hero .sprout{font-size:clamp(2rem,7vw,4rem)}
+h1{font-size:clamp(1.7rem,5vw,2.9rem);line-height:1.1;margin:0 0 8px}
+h2{font-size:1.15rem;margin:0 0 8px}
+.card{margin-top:16px;padding:clamp(14px,4vw,24px);background:#fff;border:1px solid var(--line);border-radius:20px}
+.controls,.actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+label{font-weight:700}
+button,select,textarea{font:inherit;border:1px solid var(--line);border-radius:10px;padding:9px 12px;color:inherit;background:#fff}
+button{font-weight:750;cursor:pointer;min-height:44px}
+button.primary{background:var(--green);color:#fff;border-color:var(--green)}
+button:disabled,select:disabled{opacity:.6;cursor:default}
+:focus-visible{outline:3px solid #975815;outline-offset:3px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:16px 0}
+.stats div{background:var(--mint);border-radius:12px;text-align:center;padding:8px 4px;font-size:.85rem}
+.stats strong{display:block;font:750 clamp(1.2rem,5vw,1.75rem)/1.3 system-ui;font-variant-numeric:tabular-nums}
+#passage{background:#f5f8f4;border-radius:12px;padding:14px;font:clamp(.92rem,3vw,1.13rem)/1.9 ui-monospace,monospace;overflow-wrap:break-word;color:#455b50}
+.correct{color:#19583f;background:#d9f5dd}
+.incorrect{color:#8c2024;background:#ffe0df;text-decoration:underline wavy}
+.current{border-bottom:2px solid #216448}
+textarea{display:block;width:100%;margin:6px 0 12px;min-height:98px;resize:vertical}
+textarea:disabled{background:#f5f8f4}
+#status{min-height:24px;margin:12px 0 0;color:var(--green);font-weight:650}
+details{margin-top:16px;color:var(--muted)}
+summary{cursor:pointer;font-weight:700}
+</style>
+</head>
+<body>
+<main>
+<header><span>🌱 KeySprout</span><span id="best">Best —</span></header>
+<section class="hero"><div><h1>Grow your typing skills</h1><p>Pick a round and type the passage before time runs out.</p></div><div class="sprout" aria-hidden="true">🪴</div></section>
+<section class="card" aria-label="Typing test">
+<div class="controls"><label for="level">Difficulty</label><select id="level"><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select>
+<label for="duration">Time</label><select id="duration"><option value="30">30 seconds</option><option value="60">60 seconds</option></select></div>
+<div class="stats"><div><strong id="time">30s</strong>Time left</div><div><strong id="wpm">—</strong>WPM</div><div><strong id="accuracy">—</strong>Accuracy</div></div>
+<h2>Practice passage</h2><p id="passage"></p>
+<label for="typing">Your typing</label>
+<textarea id="typing" placeholder="Press Start to begin" autocomplete="off" autocapitalize="off" spellcheck="false" disabled></textarea>
+<div class="actions"><button class="primary" id="start">Start</button><button id="reset">Reset</button></div>
+<p id="status" role="status"></p>
+</section>
+<details><summary>How scoring works</summary><p>WPM estimates words from correctly typed characters, counting five characters as one word. Accuracy is the share of characters in your final entry that match the passage at the same position. The best score is saved on this browser.</p></details>
+</main>
+<script>
+'use strict';
+const passages = {
+  easy: [
+    'The sky is clear today. I will take a short walk after lunch and look for birds near the garden.',
+    'My friend and I made tea after class. We sat by the window and watched the rain fall on the road.'
+  ],
+  medium: [
+    'A good study session starts with one clear goal. Close the extra tabs, set a timer, and write a short summary when you finish.',
+    'The library was quiet, so Mira found a window seat and opened her notebook. She reviewed her notes before writing a few practice questions.'
+  ],
+  hard: [
+    'Debugging takes patience: read the error, check your assumptions, and change one thing at a time. If line 42 still fails, trace the input carefully.',
+    'Before submitting the project, test three cases: an empty input, a typical value, and an unexpected symbol. Record what changed and why it mattered.'
+  ]
+};
+const byId = id => document.getElementById(id);
+const level = byId('level'), duration = byId('duration'), typing = byId('typing');
+const start = byId('start'), reset = byId('reset'), passage = byId('passage');
+const time = byId('time'), wpm = byId('wpm'), accuracy = byId('accuracy');
+const status = byId('status'), bestBadge = byId('best');
+const storageKey = 'keysprout-best-v1';
+let best = 0;
+try { best = Number(localStorage.getItem(storageKey)) || 0; } catch {}
+let passageIndex = 0, target = '', startedAt = 0, deadline = 0, timer = 0;
+let submittedText = '';
+
+function showBest() {
+  bestBadge.textContent = best ? 'Best ' + best + ' WPM' : 'Best —';
+}
+
+function renderPassage() {
+  const fragment = document.createDocumentFragment();
+  for (let index = 0; index < target.length; index++) {
+    const character = document.createElement('span');
+    character.textContent = target[index];
+    if (index < submittedText.length) {
+      character.className = submittedText[index] === target[index] ? 'correct' : 'incorrect';
+    } else if (timer && index === submittedText.length) {
+      character.className = 'current';
+    }
+    fragment.append(character);
+  }
+  passage.replaceChildren(fragment);
+}
+
+function clearRound() {
+  clearInterval(timer);
+  timer = 0;
+  target = passages[level.value][passageIndex];
+  submittedText = '';
+  typing.value = '';
+  typing.disabled = true;
+  typing.placeholder = 'Press Start to begin';
+  level.disabled = duration.disabled = start.disabled = false;
+  time.textContent = duration.value + 's';
+  wpm.textContent = accuracy.textContent = '—';
+  status.textContent = '';
+  renderPassage();
+}
+
+function finish(now, message) {
+  clearInterval(timer);
+  timer = 0;
+  let correct = 0;
+  for (let index = 0; index < submittedText.length; index++) {
+    if (submittedText[index] === target[index]) correct++;
+  }
+  const minutes = Math.max(1000, Math.min(now, deadline) - startedAt) / 60000;
+  const score = Math.round(correct / 5 / minutes);
+  const percent = submittedText.length ? Math.round(correct / submittedText.length * 100) : 0;
+  wpm.textContent = score;
+  accuracy.textContent = percent + '%';
+  typing.disabled = true;
+  start.disabled = level.disabled = duration.disabled = false;
+  if (score > best) {
+    best = score;
+    try { localStorage.setItem(storageKey, String(best)); } catch {}
+    showBest();
+  }
+  renderPassage();
+  status.textContent = message + ' ' + score + ' WPM, ' + percent + '% accuracy.';
+}
+
+function tick() {
+  const now = performance.now();
+  const remaining = Math.max(0, Math.ceil((deadline - now) / 1000));
+  time.textContent = remaining + 's';
+  if (remaining === 0) finish(now, 'Time is up.');
+}
+
+start.addEventListener('click', () => {
+  if (status.textContent) passageIndex = (passageIndex + 1) % passages[level.value].length;
+  clearRound();
+  startedAt = performance.now();
+  deadline = startedAt + Number(duration.value) * 1000;
+  level.disabled = duration.disabled = start.disabled = true;
+  typing.disabled = false;
+  timer = setInterval(tick, 100);
+  renderPassage();
+  typing.focus();
+});
+
+typing.addEventListener('paste', event => event.preventDefault());
+typing.addEventListener('drop', event => event.preventDefault());
+typing.addEventListener('input', event => {
+  if (!timer || event.isComposing) return;
+  const now = performance.now();
+  if (now >= deadline) {
+    typing.value = submittedText;
+    tick();
+    return;
+  }
+  submittedText = typing.value;
+  renderPassage();
+  if (submittedText === target) {
+    time.textContent = Math.ceil((deadline - now) / 1000) + 's';
+    finish(now, 'Passage complete!');
+  }
+});
+
+reset.addEventListener('click', clearRound);
+level.addEventListener('change', () => { passageIndex = 0; clearRound(); });
+duration.addEventListener('change', clearRound);
+showBest();
+clearRound();
+</script>
+</body>
+</html>
