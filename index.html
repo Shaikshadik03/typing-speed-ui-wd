@@ -42,18 +42,18 @@
 <section class="card" aria-label="Typing test">
 <div class="actions" aria-label="Round mode"><button id="practice" class="selected" aria-pressed="true">Practice</button><button id="daily" aria-pressed="false">Daily challenge</button></div>
 <p id="unlock"></p>
-<div class="controls"><label for="level">Difficulty</label><select id="level"><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select>
-<label for="duration">Time</label><select id="duration"><option value="30">30 seconds</option><option value="60">60 seconds</option></select></div>
+<div class="page-heading"><div><p class="eyebrow">FOCUS. FIND YOUR RHYTHM.</p><h1>Measure your momentum.</h1></div></div><div class="controls"><label for="level">Text mode</label><select id="level"><option value="everyday">Everyday Text</option><option value="symbols">Numbers and Symbols</option><option value="code">Code</option></select>
+<label for="duration">Time</label><select id="duration"><option value="15">15 seconds</option><option value="30" selected>30 seconds</option><option value="60">60 seconds</option><option value="120">120 seconds</option></select></div>
 <div class="stats"><div><strong id="time">30s</strong>Time left</div><div><strong id="wpm">—</strong>WPM</div><div><strong id="accuracy">—</strong>Accuracy</div></div>
-<progress id="progress" value="0" max="1" aria-label="Passage progress"></progress>
+<progress id="progress" value="0" max="1" aria-label="Test time elapsed"></progress>
 <h2>Typing passage</h2><p id="passage"></p>
 <label for="typing">Your typing</label>
 <textarea id="typing" placeholder="Press Start to begin" autocomplete="off" autocapitalize="off" spellcheck="false" disabled></textarea>
 <div class="actions"><button class="primary" id="start">Start</button><button id="reset">Reset</button></div>
-<p id="status" role="status"></p>
+<p id="status" role="status">Ready when you are.</p><div id="testResult" class="result" role="status" hidden></div><button id="testMistakeDrill" hidden>Practice tricky keys</button>
 </section>
 <section class="card"><h2>Recent scores</h2><p id="emptyHistory">Finish a round to see your results here.</p><ul id="history" class="history"></ul></section>
-<details><summary>How scoring works</summary><p>WPM estimates words from correctly typed characters, counting five characters as one word. Accuracy is the share of characters in your final entry that match the passage at the same position. The best score is saved on this browser.</p></details>
+<details><summary>How scoring works</summary><p>WPM = correctly typed characters ÷ 5 ÷ elapsed minutes. Accuracy = matching characters in your final entry ÷ characters entered × 100. Spaces and punctuation count. Backspace corrections are allowed; the mistake breakdown also remembers corrected errors. No input gives 0 WPM and 0% accuracy and is not saved. Comparisons use the same text mode, round type and chosen duration. Older results without a duration are kept in history but excluded from comparisons.</p></details>
 </div>
 
 <section class="card" id="arcade" hidden aria-label="Word Bloom arcade">
@@ -80,6 +80,7 @@
 <footer><span>KeySprout <span class="muted">/ Practice with purpose.</span></span><span>Progress stays in this browser.</span></footer></main>
 <script src="./js/storage.js" defer></script>
 <script src="./js/curriculum.js" defer></script>
+<script src="./js/passages.js" defer></script>
 <script src="./js/tests.js" defer></script>
 <script src="./js/lessons.js" defer></script>
 <script src="./js/arcade.js" defer></script>

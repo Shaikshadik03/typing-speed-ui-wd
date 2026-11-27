@@ -1,190 +1,97 @@
-
 'use strict';
-const passages = {
-  easy: [
-    'The sky is clear today. I will take a short walk after lunch and look for birds near the garden.',
-    'My friend and I made tea after class. We sat by the window and watched the rain fall on the road.'
-  ],
-  medium: [
-    'A good study session starts with one clear goal. Close the extra tabs, set a timer, and write a short summary when you finish.',
-    'The library was quiet, so Mira found a window seat and opened her notebook. She reviewed her notes before writing a few practice questions.'
-  ],
-  hard: [
-    'Debugging takes patience: read the error, check your assumptions, and change one thing at a time. If line 42 still fails, trace the input carefully.',
-    'Before submitting the project, test three cases: an empty input, a typical value, and an unexpected symbol. Record what changed and why it mattered.'
-  ]
-};
 const byId = id => document.getElementById(id);
-const level = byId('level'), duration = byId('duration'), typing = byId('typing');
-const start = byId('start'), reset = byId('reset'), passage = byId('passage');
-const time = byId('time'), wpm = byId('wpm'), accuracy = byId('accuracy');
-const status = byId('status'), bestBadge = byId('best');
-const storageKey = 'keysprout-best-v1';
-let best = 0;
-try { best = Number(localStorage.getItem(storageKey)) || 0; } catch {}
-let passageIndex = 0, target = '', startedAt = 0, deadline = 0, timer = 0;
-let submittedText = '';
-let mode = 'practice';
-let rounds = [];
-let achievements = { medium: false, hard: false };
-try {
-  const saved = JSON.parse(localStorage.getItem('keysprout-progress-v1'));
-  if (Array.isArray(saved?.rounds)) rounds = saved.rounds;
-  if (saved?.achievements) achievements = saved.achievements;
-} catch {}
-const practiceButton = byId('practice');
-const dailyButton = byId('daily');
-
-function today() {
-  const date = new Date();
-  return [date.getFullYear(), date.getMonth() + 1, date.getDate()].map(part => String(part).padStart(2, '0')).join('-');
-}
-
-function showProgress() {
-  const completed = rounds.some(round => round.mode === 'daily' && round.date === today());
-  byId('unlock').textContent = mode === 'daily'
-    ? completed ? 'Daily challenge completed. Practise it again any time today.' : 'Same passage all day. Finish it to complete today’s challenge.'
-    : achievements.hard ? 'All levels unlocked.' : 'Finish ' + (achievements.medium ? 'Medium' : 'Easy') + ' with 90% accuracy to unlock the next level.';
-  level.options[1].disabled = !achievements.medium;
-  level.options[2].disabled = !achievements.hard;
-  byId('emptyHistory').hidden = rounds.length > 0;
-  byId('history').replaceChildren(...rounds.slice(0, 10).map(round => {
-    const row = document.createElement('li');
-    const label = document.createElement('span');
-    const score = document.createElement('strong');
-    label.textContent = round.mode === 'daily' ? 'Daily · ' + round.date : round.level + ' · ' + round.date;
-    score.textContent = round.score + ' WPM · ' + round.percent + '%';
-    row.append(label, score);
-    return row;
+const level=byId('level'),duration=byId('duration'),typing=byId('typing'),start=byId('start'),reset=byId('reset'),passage=byId('passage');
+const time=byId('time'),wpm=byId('wpm'),accuracy=byId('accuracy'),status=byId('status');
+let best=KS.data.best, rounds=KS.data.rounds, mode='practice', target='', submittedText='', timer=0, startedAt=0, deadline=0;
+let testMistakes={}, testState='ready', roundDate='', testDuration=30, testTextMode='everyday', passageIndex=0;
+const today=KS.date;
+function showBest(){byId('best').textContent=best?'Best '+best+' WPM':'Best —';}
+function showProgress(){
+  const completed=rounds.some(r=>r.mode==='daily'&&r.date===today());
+  byId('unlock').textContent=mode==='daily' ? (completed?'Daily challenge completed. Replay any time. ':'')+'A shared passage for '+today()+'. 60 seconds, Everyday Text. Dates follow your local calendar.' : 'Choose your focus and duration. Every mode is available from the start.';
+  byId('emptyHistory').hidden=rounds.length>0;
+  byId('history').replaceChildren(...rounds.slice(0,5).map(r=>{
+    const row=document.createElement('li'),label=document.createElement('span'),score=document.createElement('strong');
+    label.textContent=(r.mode==='daily'?'Daily challenge':modeLabels[r.textMode]||r.level)+' · '+r.date;
+    score.textContent=r.score+' WPM · '+r.percent+'%';row.append(label,score);return row;
   }));
 }
-
-function switchMode(next) {
-  mode = next;
-  practiceButton.classList.toggle('selected', mode === 'practice');
-  dailyButton.classList.toggle('selected', mode === 'daily');
-  practiceButton.setAttribute('aria-pressed', mode === 'practice');
-  dailyButton.setAttribute('aria-pressed', mode === 'daily');
-  clearRound();
-  showProgress();
-}
-
-function showBest() {
-  bestBadge.textContent = best ? 'Best ' + best + ' WPM' : 'Best —';
-}
-
-function renderPassage() {
-  const fragment = document.createDocumentFragment();
-  for (let index = 0; index < target.length; index++) {
-    const character = document.createElement('span');
-    character.textContent = target[index];
-    if (index < submittedText.length) {
-      character.className = submittedText[index] === target[index] ? 'correct' : 'incorrect';
-    } else if (timer && index === submittedText.length) {
-      character.className = 'current';
-    }
-    fragment.append(character);
+function renderPassage(){
+  const offset=Math.floor(submittedText.length/180)*180, end=Math.min(target.length,offset+360);
+  const fragment=document.createDocumentFragment();
+  for(let i=offset;i<end;i++){
+    const span=document.createElement('span');span.textContent=target[i];
+    span.className=i<submittedText.length ? submittedText[i]===target[i]?'correct':'incorrect' : i===submittedText.length?'current':'';
+    if(i===submittedText.length)span.setAttribute('aria-current','true');fragment.append(span);
   }
   passage.replaceChildren(fragment);
-  byId('progress').value = Math.min(submittedText.length / target.length, 1);
 }
-
-function clearRound() {
-  clearInterval(timer);
-  timer = 0;
-  const dailyPassages = Object.values(passages).flat();
-  const dayIndex = Math.floor(Date.parse(today()) / 86400000);
-  target = mode === 'daily' ? dailyPassages[dayIndex % dailyPassages.length] : passages[level.value][passageIndex];
-  submittedText = '';
-  typing.value = '';
-  typing.disabled = true;
-  typing.placeholder = 'Press Start to begin';
-  level.disabled = duration.disabled = mode === 'daily';
-  start.disabled = practiceButton.disabled = dailyButton.disabled = false;
-  time.textContent = (mode === 'daily' ? 60 : duration.value) + 's';
-  wpm.textContent = accuracy.textContent = '—';
-  status.textContent = '';
-  renderPassage();
+function scoreTest(now=performance.now()){
+  let correct=0;for(let i=0;i<submittedText.length;i++)if(submittedText[i]===target[i])correct++;
+  const elapsed=Math.max(1000,Math.min(now,deadline)-startedAt);
+  return {score:Math.round(correct*12000/elapsed),percent:submittedText.length?Math.round(correct/submittedText.length*100):0,errors:submittedText.length-correct,correct,elapsed};
 }
-
-function finish(now, message) {
-  clearInterval(timer);
-  timer = 0;
-  let correct = 0;
-  for (let index = 0; index < submittedText.length; index++) {
-    if (submittedText[index] === target[index]) correct++;
-  }
-  const minutes = Math.max(1000, Math.min(now, deadline) - startedAt) / 60000;
-  const score = Math.round(correct / 5 / minutes);
-  const percent = submittedText.length ? Math.round(correct / submittedText.length * 100) : 0;
-  wpm.textContent = score;
-  accuracy.textContent = percent + '%';
-  typing.disabled = true;
-  start.disabled = practiceButton.disabled = dailyButton.disabled = false;
-  level.disabled = duration.disabled = mode === 'daily';
-  const completed = submittedText.length >= target.length;
-  if (mode === 'practice' && completed && percent >= 90) {
-    if (level.value === 'easy') achievements.medium = true;
-    if (level.value === 'medium') achievements.hard = true;
-  }
-  if (submittedText.length && (mode === 'practice' || completed)) {
-    rounds = [{ mode, date: today(), level: level.selectedOptions[0].textContent, score, percent }, ...rounds].slice(0, 100);
-    try { localStorage.setItem('keysprout-progress-v1', JSON.stringify({ rounds, achievements })); } catch {}
-  }
-  showProgress();
-  if (score > best) {
-    best = score;
-    try { localStorage.setItem(storageKey, String(best)); } catch {}
-    showBest();
-  }
-  renderPassage();
-  status.textContent = message + ' ' + score + ' WPM, ' + percent + '% accuracy.';
+function switchMode(next){
+  mode=next;
+  for(const name of ['practice','daily']){byId(name).classList.toggle('selected',name===mode);byId(name).setAttribute('aria-pressed',String(name===mode));}
+  clearRound();showProgress();
 }
-
-function tick() {
-  const now = performance.now();
-  const remaining = Math.max(0, Math.ceil((deadline - now) / 1000));
-  time.textContent = remaining + 's';
-  if (remaining === 0) finish(now, 'Time is up.');
+function clearRound(){
+  clearInterval(timer);timer=0;testState='ready';
+  roundDate=today();testTextMode=mode==='daily'?'everyday':level.value;testDuration=mode==='daily'?60:Number(duration.value);
+  target=makePassage(testTextMode,mode==='daily'?roundDate:Date.now()+'-'+passageIndex++);
+  submittedText='';testMistakes={};typing.value='';typing.disabled=true;typing.placeholder='Press Start to begin';
+  level.disabled=duration.disabled=mode==='daily';start.disabled=false;byId('practice').disabled=byId('daily').disabled=false;
+  start.textContent='Start test';time.textContent=testDuration+'s';wpm.textContent=accuracy.textContent='—';status.textContent='Ready when you are. The clock starts when you press Start.';
+  byId('testResult').hidden=true;byId('testMistakeDrill').hidden=true;byId('progress').value=0;renderPassage();
 }
-
-start.addEventListener('click', () => {
-  if (status.textContent) passageIndex = (passageIndex + 1) % passages[level.value].length;
-  clearRound();
-  startedAt = performance.now();
-  deadline = startedAt + (mode === 'daily' ? 60 : Number(duration.value)) * 1000;
-  practiceButton.disabled = dailyButton.disabled = true;
-  level.disabled = duration.disabled = start.disabled = true;
-  typing.disabled = false;
-  timer = setInterval(tick, 100);
-  renderPassage();
-  typing.focus();
-});
-
-typing.addEventListener('paste', event => event.preventDefault());
-typing.addEventListener('drop', event => event.preventDefault());
-typing.addEventListener('input', event => {
-  if (!timer || event.isComposing) return;
-  const now = performance.now();
-  if (now >= deadline) {
-    typing.value = submittedText;
-    tick();
-    return;
-  }
-  submittedText = typing.value;
-  renderPassage();
-  if (submittedText.length >= target.length) {
-    time.textContent = Math.ceil((deadline - now) / 1000) + 's';
-    finish(now, 'Passage complete!');
-  }
-});
-
-reset.addEventListener('click', clearRound);
-level.addEventListener('change', () => { passageIndex = 0; clearRound(); });
-duration.addEventListener('change', clearRound);
-practiceButton.addEventListener('click', () => switchMode('practice'));
-dailyButton.addEventListener('click', () => switchMode('daily'));
-showBest();
-clearRound();
-showProgress();
-
+function finish(now=performance.now()){
+  if(testState!=='running')return;
+  clearInterval(timer);timer=0;testState='finished';
+  const result=scoreTest(now), previous=rounds.find(r=>r.mode===mode&&r.textMode===testTextMode&&r.duration===testDuration);
+  typing.disabled=true;level.disabled=duration.disabled=mode==='daily';start.disabled=false;byId('practice').disabled=byId('daily').disabled=false;start.textContent='Retry test';
+  time.textContent='0s';byId('progress').value=1;wpm.textContent=result.score;accuracy.textContent=result.percent+'%';
+  const box=byId('testResult');box.replaceChildren();box.hidden=false;
+  const title=document.createElement('strong');title.textContent='Test complete · '+result.score+' WPM';
+  const detail=document.createElement('p');detail.textContent=result.percent+'% accuracy · '+result.errors+' errors in final entry · '+testDuration+' seconds';
+  const comparison=document.createElement('p');
+  const delta=(value,suffix)=>`${value>0?'+':''}${value}${suffix}`;
+  comparison.textContent=!submittedText?'No input this time. Nothing was saved. Start again when you are ready.':previous?'Since your previous comparable test: '+delta(result.score-previous.score,' WPM')+', '+delta(result.percent-previous.percent,' percentage points accuracy')+'.':'Your first result for this mode and duration. This is your new baseline.';
+  box.append(title,detail,comparison);
+  if(submittedText.length){
+    const saved={id:Date.now()+'-'+Math.random().toString(36).slice(2,8),date:today(),challengeDate:mode==='daily'?roundDate:null,mode,textMode:testTextMode,level:modeLabels[testTextMode],duration:testDuration,...result,mistakes:{...testMistakes}};
+    rounds.unshift(saved);best=Math.max(best,result.score);KS.data.best=best;KS.addMistakes(testMistakes);KS.markDay();
+    status.textContent='Result saved in this browser.';
+  }else status.textContent='No input. This round was not saved.';
+  const tricky=Object.entries(testMistakes).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k);
+  byId('testMistakeDrill').hidden=!tricky.length;
+  if(tricky.length){const note=document.createElement('p');note.textContent='Keys to revisit: '+tricky.map(k=>k===' '?'Space':k).join(', ');box.append(note);}
+  showBest();showProgress();renderPassage();
+}
+function tick(){
+  if(testState!=='running')return;
+  const now=performance.now(),remaining=Math.max(0,deadline-now);time.textContent=Math.ceil(remaining/1000)+'s';byId('progress').value=1-remaining/(testDuration*1000);
+  if(!remaining){finish(now);return;}
+  if(submittedText){const result=scoreTest(now);wpm.textContent=result.score;accuracy.textContent=result.percent+'%';}
+}
+start.onclick=()=>{
+  clearRound();startedAt=performance.now();deadline=startedAt+testDuration*1000;testState='running';timer=setInterval(tick,100);
+  typing.disabled=false;typing.placeholder='Type the passage exactly as shown';level.disabled=duration.disabled=start.disabled=byId('practice').disabled=byId('daily').disabled=true;
+  status.textContent='Test running. Keep your eyes on the passage.';renderPassage();typing.focus();
+};
+function acceptTestInput(){
+  if(testState!=='running')return;
+  if(performance.now()>=deadline){typing.value=submittedText;tick();return;}
+  const value=typing.value;
+  for(let i=0;i<value.length;i++)if(value[i]!==submittedText[i]&&value[i]!==target[i]&&target[i])testMistakes[target[i]]=(testMistakes[target[i]]||0)+1;
+  submittedText=value;
+  if(submittedText.length>=target.length-360)target+=' '+makePassage(testTextMode,roundDate);
+  renderPassage();const result=scoreTest();wpm.textContent=result.score;accuracy.textContent=result.percent+'%';
+}
+typing.addEventListener('input',e=>{if(!e.isComposing)acceptTestInput();});
+typing.addEventListener('compositionend',acceptTestInput);
+for(const event of ['paste','drop'])typing.addEventListener(event,e=>e.preventDefault());
+reset.onclick=clearRound;level.onchange=clearRound;duration.onchange=clearRound;
+byId('practice').onclick=()=>switchMode('practice');byId('daily').onclick=()=>switchMode('daily');
+byId('testMistakeDrill').onclick=()=>startMistakeDrill(Object.entries(testMistakes).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k));
+showBest();clearRound();showProgress();
