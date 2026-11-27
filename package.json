@@ -1,10 +1,11 @@
 {
   "name": "keysprout",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "2.0.0",
+  "description": "Static typing academy with guided lessons, tests, arcade games and local progress",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "playwright test",
+    "serve": "node scripts/serve.cjs",
+    "format": "prettier --write index.html assets/*.css js/*.js tests/*.js playwright.config.js"
   },
   "repository": {
     "type": "git",
@@ -12,7 +13,6 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/Shaikshadik03/typing-speed-ui-wd/issues"
@@ -22,5 +22,6 @@
     "@axe-core/playwright": "^4.14.1",
     "@playwright/test": "^1.65.1",
     "prettier": "^3.10.1"
-  }
+  },
+  "private": true
 }

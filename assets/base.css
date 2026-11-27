@@ -1,0 +1,170 @@
+/* Shared structure retained from the original typing app. */
+h1,
+h2 {
+  margin: 0 0 8px;
+}
+.controls,
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+label {
+  font-weight: 600;
+}
+.hero p {
+  margin: 0;
+}
+.stats strong {
+  font-variant-numeric: tabular-nums;
+}
+#passage {
+  border-radius: 12px;
+  padding: 14px;
+  font-family: ui-monospace, monospace;
+  overflow-wrap: break-word;
+}
+.incorrect {
+  text-decoration: underline wavy;
+}
+textarea {
+  display: block;
+  width: 100%;
+  margin: 6px 0 12px;
+  min-height: 98px;
+  resize: vertical;
+}
+#status {
+  min-height: 24px;
+  margin: 12px 0 0;
+  font-weight: 600;
+}
+details {
+  margin-top: 16px;
+  color: var(--muted);
+}
+summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+progress {
+  width: 100%;
+  accent-color: var(--green);
+  height: 12px;
+}
+.history {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+}
+.history li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+#unlock {
+  margin: 8px 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+#learnPanel {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+}
+.lesson-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.lesson-grid button {
+  text-align: left;
+  padding: 12px;
+  line-height: 1.4;
+}
+.lesson-grid button small {
+  display: block;
+  margin-top: 4px;
+}
+.tiles {
+  margin: 14px 0;
+}
+.tile {
+  text-align: center;
+  font-family: ui-monospace, monospace;
+  font-weight: 600;
+}
+.keyboard {
+  padding: 10px;
+  border-radius: 12px;
+  display: grid;
+  gap: 5px;
+}
+.keyrow {
+  display: flex;
+  justify-content: center;
+}
+.key {
+  min-width: 0;
+}
+.hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+.hud span {
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.result {
+  border: 1px solid var(--line);
+  padding: 16px;
+  border-radius: 12px;
+  margin: 12px 0;
+}
+.result strong {
+  display: block;
+  font-size: 1.2rem;
+}
+#finger {
+  min-height: 24px;
+}
+.arc-field {
+  border-radius: 12px;
+  margin: 14px 0;
+}
+#arcWord {
+  font-family: ui-monospace, monospace;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+#arcade input {
+  width: 100%;
+  padding: 12px;
+  margin: 6px 0 12px;
+}
+#arcade input[aria-invalid="true"] {
+  border: 2px solid var(--error);
+}
+.arcade-controls {
+  margin: 12px 0;
+}
+.table-scroll {
+  overflow: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+td,
+th {
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
