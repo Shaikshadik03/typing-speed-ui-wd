@@ -30,7 +30,7 @@ function showBest() {
 }
 function showProgress() {
   const completed = rounds.some(
-    (r) => r.mode === "daily" && r.date === today(),
+    (r) => r.mode === "daily" && (r.challengeDate || r.date) === today(),
   );
   byId("unlock").textContent =
     mode === "daily"

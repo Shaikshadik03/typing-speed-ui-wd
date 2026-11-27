@@ -1,4 +1,26 @@
 const { test, expect } = require("@playwright/test");
+test("a challenge crossing midnight retains its passage date and credits the completion day", async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date("2026-11-27T23:59:50") });
+  await page.goto("/");
+  await page.locator("#homeDaily").click();
+  await page.locator("#start").click();
+  await page
+    .locator("#typing")
+    .fill((await page.locator("#passage").innerText()).slice(0, 10));
+  await page.clock.fastForward(60000);
+  await expect(page.locator("#unlock")).not.toContainText(
+    "Daily challenge completed",
+  );
+  const result = await page.evaluate(() => ({
+    round: KS.data.rounds[0],
+    days: KS.data.activeDays,
+  }));
+  expect(result.round.challengeDate).toBe("2026-11-27");
+  expect(result.round.date).toBe("2026-11-28");
+  expect(result.days).toEqual(["2026-11-28"]);
+});
 test("timed scoring, comparable results, mistakes, no input and cancellation", async ({
   page,
 }) => {
