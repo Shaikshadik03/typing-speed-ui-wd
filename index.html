@@ -108,6 +108,14 @@ header{padding:5px 0 13px;border-bottom:1px solid #d5ded8}
 .arcade-controls{margin:12px 0}
 .arcade-controls select{min-height:44px}
 @media(max-width:620px){.hero{grid-template-columns:1fr}.hero-photo{min-height:0;height:140px}.lesson-nav{width:100%}.lesson-nav button{flex:1;padding-inline:7px}}
+
+.dashboard-top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.trend{display:grid;gap:10px;margin:12px 0;padding:0;list-style:none}
+.trend li{display:grid;grid-template-columns:54px minmax(0,1fr) 78px;align-items:center;gap:10px}
+.trend progress{margin:0}
+.table-scroll{overflow:auto}
+table{width:100%;border-collapse:collapse;text-align:left}
+td,th{padding:9px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 </style>
 </head>
 <body>
@@ -116,7 +124,7 @@ header{padding:5px 0 13px;border-bottom:1px solid #d5ded8}
 <section class="hero"><div><h1>Grow your typing skills</h1><p>Learn which fingers to use, then measure your speed.</p></div><img class="hero-photo" src="https://images.unsplash.com/photo-1771370596565-683a5a952de2?auto=format&amp;fit=crop&amp;w=1100&amp;q=82" alt="Black mechanical keyboard on a wooden desk" decoding="async"></section>
 <nav class="actions lesson-nav" aria-label="Training mode">
 <button id="learnTab" class="primary" aria-pressed="true">Guided lessons</button>
-<button id="testTab" aria-pressed="false">Speed test</button><button id="arcTab" aria-pressed="false">Arcade</button>
+<button id="testTab" aria-pressed="false">Speed test</button><button id="arcTab" aria-pressed="false">Arcade</button><button id="progressTab" aria-pressed="false">Progress</button>
 </nav>
 <div id="learnPanel"><section class="card" id="lessons" aria-label="Guided typing lessons">
 <h2>Choose a lesson</h2>
@@ -160,6 +168,15 @@ header{padding:5px 0 13px;border-bottom:1px solid #d5ded8}
 <input id="arcInput" disabled autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="arcWord">
 <div class="actions"><button id="arcStart">Start round</button><button id="arcReset" disabled>Reset</button></div>
 <p id="arcStatus" role="status"></p>
+</section>
+
+<section class="card" id="dashboard" hidden aria-label="Practice progress">
+<div class="dashboard-top"><h2>Practice progress</h2><label for="roundFilter">Show <select id="roundFilter"><option value="all">All tests</option><option value="practice">Practice</option><option value="daily">Daily challenge</option></select></label></div>
+<div class="stats"><div><strong id="dashCount">0</strong>Saved tests</div><div><strong id="dashSpeed">—</strong>Avg. WPM</div><div><strong id="dashAccuracy">—</strong>Avg. accuracy</div></div>
+<div class="dashboard-top"><h2>Daily test goal</h2><label for="goalTarget">Tests per day <select id="goalTarget"><option>1</option><option selected>3</option><option>5</option><option>10</option></select></label></div>
+<progress id="goalProgress" aria-label="Daily test goal progress"></progress><p id="goalText"></p>
+<h2>Recent speed trend</h2><ol class="trend" id="speedTrend"></ol><p id="dashEmpty">Finish a speed test to see your progress here.</p>
+<div class="table-scroll"><table id="dashTable" hidden><thead><tr><th scope="col">Date</th><th scope="col">Mode</th><th scope="col">WPM</th><th scope="col">Accuracy</th></tr></thead><tbody id="dashRows"></tbody></table></div>
 </section>
 </main>
 <script>
@@ -212,7 +229,7 @@ function showProgress() {
   level.options[1].disabled = !achievements.medium;
   level.options[2].disabled = !achievements.hard;
   byId('emptyHistory').hidden = rounds.length > 0;
-  byId('history').replaceChildren(...rounds.map(round => {
+  byId('history').replaceChildren(...rounds.slice(0, 10).map(round => {
     const row = document.createElement('li');
     const label = document.createElement('span');
     const score = document.createElement('strong');
@@ -292,7 +309,7 @@ function finish(now, message) {
     if (level.value === 'medium') achievements.hard = true;
   }
   if (submittedText.length && (mode === 'practice' || completed)) {
-    rounds = [{ mode, date: today(), level: level.selectedOptions[0].textContent, score, percent }, ...rounds].slice(0, 10);
+    rounds = [{ mode, date: today(), level: level.selectedOptions[0].textContent, score, percent }, ...rounds].slice(0, 100);
     try { localStorage.setItem('keysprout-progress-v1', JSON.stringify({ rounds, achievements })); } catch {}
   }
   showProgress();
@@ -509,13 +526,14 @@ byId('advance').addEventListener('click', () => {
   drillButton.focus();
 });
 byId('redo').addEventListener('click', () => resetLesson(lessonIndex));
-for (const [id, panel] of [['learnTab', 'learnPanel'], ['testTab', 'testPanel'], ['arcTab', 'arcade']]) {
+for (const [id, panel] of [['learnTab', 'learnPanel'], ['testTab', 'testPanel'], ['arcTab', 'arcade'], ['progressTab', 'dashboard']]) {
   byId(id).addEventListener('click', () => {
 
     if (panel !== 'learnPanel' && active) resetLesson(lessonIndex);
     if (panel !== 'testPanel' && timer) clearRound();
     if (panel !== 'arcade' && arcTick) stopArcade(false);
-    for (const [tabId, panelId] of [['learnTab', 'learnPanel'], ['testTab', 'testPanel'], ['arcTab', 'arcade']]) {
+    if (panel === 'dashboard') renderDashboard();
+    for (const [tabId, panelId] of [['learnTab', 'learnPanel'], ['testTab', 'testPanel'], ['arcTab', 'arcade'], ['progressTab', 'dashboard']]) {
       const selected = panel === panelId;
       byId(panelId).hidden = !selected;
       byId(tabId).classList.toggle('primary', selected);
@@ -646,6 +664,60 @@ arcadeInput.addEventListener('input', event => {
     if (arcTick) field.classList.add('bloom');
   });
   showWord();
+});
+
+const goalTarget = byId('goalTarget');
+const roundFilter = byId('roundFilter');
+const goalKey = 'keysprout-daily-test-goal';
+try {
+  const goal = localStorage.getItem(goalKey);
+  if (['1', '3', '5', '10'].includes(goal)) goalTarget.value = goal;
+} catch {}
+
+function renderDashboard() {
+  const selected = rounds.filter(round => roundFilter.value === 'all' || round.mode === roundFilter.value);
+  const count = selected.length;
+  const average = key => Math.round(selected.reduce((sum, round) => sum + round[key], 0) / count);
+  byId('dashCount').textContent = count;
+  byId('dashSpeed').textContent = count ? average('score') : '—';
+  byId('dashAccuracy').textContent = count ? average('percent') + '%' : '—';
+  const completedToday = rounds.filter(round => round.date === today()).length;
+  const goal = Number(goalTarget.value);
+  byId('goalProgress').max = goal;
+  byId('goalProgress').value = Math.min(completedToday, goal);
+  byId('goalText').textContent = completedToday + ' of ' + goal + ' tests today' + (completedToday >= goal ? ' · Goal reached' : '');
+  byId('dashEmpty').hidden = count > 0;
+  byId('dashEmpty').textContent = rounds.length ? 'No saved tests for this filter.' : 'Finish a speed test to see your progress here.';
+  byId('dashTable').hidden = !count;
+  const recent = selected.slice(0, 7).reverse();
+  const maximum = Math.max(1, ...recent.map(round => round.score));
+  byId('speedTrend').replaceChildren(...recent.map(round => {
+    const item = document.createElement('li');
+    const date = document.createElement('span');
+    date.textContent = round.date.slice(5);
+    const bar = document.createElement('progress');
+    bar.max = maximum;
+    bar.value = round.score;
+    bar.setAttribute('aria-label', 'Relative speed');
+    const value = document.createElement('strong');
+    value.textContent = round.score + ' WPM';
+    item.append(date, bar, value);
+    return item;
+  }));
+  byId('dashRows').replaceChildren(...selected.slice(0, 15).map(round => {
+    const row = document.createElement('tr');
+    for (const value of [round.date, round.mode === 'daily' ? 'Daily challenge' : round.level, round.score, round.percent + '%']) {
+      const cell = document.createElement('td');
+      cell.textContent = value;
+      row.append(cell);
+    }
+    return row;
+  }));
+}
+roundFilter.addEventListener('change', renderDashboard);
+goalTarget.addEventListener('change', () => {
+  try { localStorage.setItem(goalKey, goalTarget.value); } catch {}
+  renderDashboard();
 });
 </script>
 </body>
