@@ -37,6 +37,11 @@ textarea:disabled{background:#f5f8f4}
 #status{min-height:24px;margin:12px 0 0;color:var(--green);font-weight:650}
 details{margin-top:16px;color:var(--muted)}
 summary{cursor:pointer;font-weight:700}
+progress{width:100%;accent-color:var(--green);height:12px}
+.history{list-style:none;padding:0;margin:10px 0 0}
+.history li{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
+.selected{background:var(--mint);border-color:var(--green)}
+#unlock{margin:8px 0;color:var(--muted);font-size:.9rem}
 </style>
 </head>
 <body>
@@ -44,15 +49,19 @@ summary{cursor:pointer;font-weight:700}
 <header><span>🌱 KeySprout</span><span id="best">Best —</span></header>
 <section class="hero"><div><h1>Grow your typing skills</h1><p>Pick a round and type the passage before time runs out.</p></div><div class="sprout" aria-hidden="true">🪴</div></section>
 <section class="card" aria-label="Typing test">
+<div class="actions" aria-label="Round mode"><button id="practice" class="selected" aria-pressed="true">Practice</button><button id="daily" aria-pressed="false">Daily challenge</button></div>
+<p id="unlock"></p>
 <div class="controls"><label for="level">Difficulty</label><select id="level"><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select>
 <label for="duration">Time</label><select id="duration"><option value="30">30 seconds</option><option value="60">60 seconds</option></select></div>
 <div class="stats"><div><strong id="time">30s</strong>Time left</div><div><strong id="wpm">—</strong>WPM</div><div><strong id="accuracy">—</strong>Accuracy</div></div>
-<h2>Practice passage</h2><p id="passage"></p>
+<progress id="progress" value="0" max="1" aria-label="Passage progress"></progress>
+<h2>Typing passage</h2><p id="passage"></p>
 <label for="typing">Your typing</label>
 <textarea id="typing" placeholder="Press Start to begin" autocomplete="off" autocapitalize="off" spellcheck="false" disabled></textarea>
 <div class="actions"><button class="primary" id="start">Start</button><button id="reset">Reset</button></div>
 <p id="status" role="status"></p>
 </section>
+<section class="card"><h2>Recent scores</h2><p id="emptyHistory">Finish a round to see your results here.</p><ul id="history" class="history"></ul></section>
 <details><summary>How scoring works</summary><p>WPM estimates words from correctly typed characters, counting five characters as one word. Accuracy is the share of characters in your final entry that match the passage at the same position. The best score is saved on this browser.</p></details>
 </main>
 <script>
@@ -81,6 +90,50 @@ let best = 0;
 try { best = Number(localStorage.getItem(storageKey)) || 0; } catch {}
 let passageIndex = 0, target = '', startedAt = 0, deadline = 0, timer = 0;
 let submittedText = '';
+let mode = 'practice';
+let rounds = [];
+let achievements = { medium: false, hard: false };
+try {
+  const saved = JSON.parse(localStorage.getItem('keysprout-progress-v1'));
+  if (Array.isArray(saved?.rounds)) rounds = saved.rounds;
+  if (saved?.achievements) achievements = saved.achievements;
+} catch {}
+const practiceButton = byId('practice');
+const dailyButton = byId('daily');
+
+function today() {
+  const date = new Date();
+  return [date.getFullYear(), date.getMonth() + 1, date.getDate()].map(part => String(part).padStart(2, '0')).join('-');
+}
+
+function showProgress() {
+  const completed = rounds.some(round => round.mode === 'daily' && round.date === today());
+  byId('unlock').textContent = mode === 'daily'
+    ? completed ? 'Daily challenge completed. Practise it again any time today.' : 'Same passage all day. Finish it to complete today’s challenge.'
+    : achievements.hard ? 'All levels unlocked.' : 'Finish ' + (achievements.medium ? 'Medium' : 'Easy') + ' with 90% accuracy to unlock the next level.';
+  level.options[1].disabled = !achievements.medium;
+  level.options[2].disabled = !achievements.hard;
+  byId('emptyHistory').hidden = rounds.length > 0;
+  byId('history').replaceChildren(...rounds.map(round => {
+    const row = document.createElement('li');
+    const label = document.createElement('span');
+    const score = document.createElement('strong');
+    label.textContent = round.mode === 'daily' ? 'Daily · ' + round.date : round.level + ' · ' + round.date;
+    score.textContent = round.score + ' WPM · ' + round.percent + '%';
+    row.append(label, score);
+    return row;
+  }));
+}
+
+function switchMode(next) {
+  mode = next;
+  practiceButton.classList.toggle('selected', mode === 'practice');
+  dailyButton.classList.toggle('selected', mode === 'daily');
+  practiceButton.setAttribute('aria-pressed', mode === 'practice');
+  dailyButton.setAttribute('aria-pressed', mode === 'daily');
+  clearRound();
+  showProgress();
+}
 
 function showBest() {
   bestBadge.textContent = best ? 'Best ' + best + ' WPM' : 'Best —';
@@ -99,18 +152,22 @@ function renderPassage() {
     fragment.append(character);
   }
   passage.replaceChildren(fragment);
+  byId('progress').value = Math.min(submittedText.length / target.length, 1);
 }
 
 function clearRound() {
   clearInterval(timer);
   timer = 0;
-  target = passages[level.value][passageIndex];
+  const dailyPassages = Object.values(passages).flat();
+  const dayIndex = Math.floor(Date.parse(today()) / 86400000);
+  target = mode === 'daily' ? dailyPassages[dayIndex % dailyPassages.length] : passages[level.value][passageIndex];
   submittedText = '';
   typing.value = '';
   typing.disabled = true;
   typing.placeholder = 'Press Start to begin';
-  level.disabled = duration.disabled = start.disabled = false;
-  time.textContent = duration.value + 's';
+  level.disabled = duration.disabled = mode === 'daily';
+  start.disabled = practiceButton.disabled = dailyButton.disabled = false;
+  time.textContent = (mode === 'daily' ? 60 : duration.value) + 's';
   wpm.textContent = accuracy.textContent = '—';
   status.textContent = '';
   renderPassage();
@@ -129,7 +186,18 @@ function finish(now, message) {
   wpm.textContent = score;
   accuracy.textContent = percent + '%';
   typing.disabled = true;
-  start.disabled = level.disabled = duration.disabled = false;
+  start.disabled = practiceButton.disabled = dailyButton.disabled = false;
+  level.disabled = duration.disabled = mode === 'daily';
+  const completed = submittedText.length >= target.length;
+  if (mode === 'practice' && completed && percent >= 90) {
+    if (level.value === 'easy') achievements.medium = true;
+    if (level.value === 'medium') achievements.hard = true;
+  }
+  if (submittedText.length && (mode === 'practice' || completed)) {
+    rounds = [{ mode, date: today(), level: level.selectedOptions[0].textContent, score, percent }, ...rounds].slice(0, 10);
+    try { localStorage.setItem('keysprout-progress-v1', JSON.stringify({ rounds, achievements })); } catch {}
+  }
+  showProgress();
   if (score > best) {
     best = score;
     try { localStorage.setItem(storageKey, String(best)); } catch {}
@@ -150,7 +218,8 @@ start.addEventListener('click', () => {
   if (status.textContent) passageIndex = (passageIndex + 1) % passages[level.value].length;
   clearRound();
   startedAt = performance.now();
-  deadline = startedAt + Number(duration.value) * 1000;
+  deadline = startedAt + (mode === 'daily' ? 60 : Number(duration.value)) * 1000;
+  practiceButton.disabled = dailyButton.disabled = true;
   level.disabled = duration.disabled = start.disabled = true;
   typing.disabled = false;
   timer = setInterval(tick, 100);
@@ -170,7 +239,7 @@ typing.addEventListener('input', event => {
   }
   submittedText = typing.value;
   renderPassage();
-  if (submittedText === target) {
+  if (submittedText.length >= target.length) {
     time.textContent = Math.ceil((deadline - now) / 1000) + 's';
     finish(now, 'Passage complete!');
   }
@@ -179,8 +248,11 @@ typing.addEventListener('input', event => {
 reset.addEventListener('click', clearRound);
 level.addEventListener('change', () => { passageIndex = 0; clearRound(); });
 duration.addEventListener('change', clearRound);
+practiceButton.addEventListener('click', () => switchMode('practice'));
+dailyButton.addEventListener('click', () => switchMode('daily'));
 showBest();
 clearRound();
+showProgress();
 </script>
 </body>
 </html>
