@@ -94,12 +94,26 @@ main{max-width:1080px}
 #arcade input[aria-invalid=true]{border:2px solid #d37b62}
 #arcade progress{accent-color:#bdf574}
 @media(prefers-reduced-motion:reduce){.arc-field.bloom{animation:none}}
+
+body{background:#f1f3f1;color:#172620}
+main{max-width:1160px}
+header{padding:5px 0 13px;border-bottom:1px solid #d5ded8}
+.hero{padding:0;box-shadow:none;min-height:230px;border-radius:14px;display:grid;grid-template-columns:1.1fr 1fr;background:#16382e}
+.hero>div{padding:clamp(24px,5vw,54px)}
+.hero-photo{width:100%;height:100%;min-height:230px;max-height:310px;object-fit:cover}
+.card,#arcade{background:#fff;color:#172620;border-radius:14px;box-shadow:0 3px 12px #182e1f12}
+#arcade p{color:#41574c}
+#arcWord{color:#fff}
+.arc-field{border-radius:12px;background:#18382f}
+.arcade-controls{margin:12px 0}
+.arcade-controls select{min-height:44px}
+@media(max-width:620px){.hero{grid-template-columns:1fr}.hero-photo{min-height:0;height:140px}.lesson-nav{width:100%}.lesson-nav button{flex:1;padding-inline:7px}}
 </style>
 </head>
 <body>
 <main>
-<header><span>🌱 KeySprout</span><span id="best">Best —</span></header>
-<section class="hero"><div><h1>Grow your typing skills</h1><p>Learn which fingers to use, then measure your speed.</p></div><div class="sprout" aria-hidden="true">🪴</div></section>
+<header><span>KeySprout</span><span id="best">Best —</span></header>
+<section class="hero"><div><h1>Grow your typing skills</h1><p>Learn which fingers to use, then measure your speed.</p></div><img class="hero-photo" src="https://images.unsplash.com/photo-1771370596565-683a5a952de2?auto=format&amp;fit=crop&amp;w=1100&amp;q=82" alt="Black mechanical keyboard on a wooden desk" decoding="async"></section>
 <nav class="actions lesson-nav" aria-label="Training mode">
 <button id="learnTab" class="primary" aria-pressed="true">Guided lessons</button>
 <button id="testTab" aria-pressed="false">Speed test</button><button id="arcTab" aria-pressed="false">Arcade</button>
@@ -136,14 +150,15 @@ main{max-width:1080px}
 </div>
 
 <section class="card" id="arcade" hidden aria-label="Word Bloom arcade">
-<h2>🌼 Word Bloom</h2>
-<p>Type each word to grow a flower. How many can you grow in 30 seconds?</p>
-<div class="hud"><span id="arcTime">30s</span><span id="arcScore">0 flowers</span><span id="arcBest">Best: 0</span></div>
+<h2>Word Bloom</h2>
+<p>Type each word before the timer ends. Choose a round length and beat your best score.</p>
+<div class="controls arcade-controls"><label for="arcDuration">Round length</label><select id="arcDuration"><option>15</option><option selected>30</option><option>60</option></select><span>seconds</span></div>
+<div class="hud"><span id="arcAccuracy">Clean entries —</span><span id="arcTime">30s</span><span id="arcScore">0 words</span><span id="arcBest">Best: 0</span></div>
 <progress id="arcClock" max="30" value="30" aria-label="Seconds remaining"></progress>
-<div class="arc-field" id="arcField"><div id="arcWord">🌱</div></div>
+<div class="arc-field" id="arcField"><div id="arcWord">Ready</div></div>
 <label for="arcInput">Type the word</label>
 <input id="arcInput" disabled autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="arcWord">
-<div class="actions"><button id="arcStart">Start round</button></div>
+<div class="actions"><button id="arcStart">Start round</button><button id="arcReset" disabled>Reset</button></div>
 <p id="arcStatus" role="status"></p>
 </section>
 </main>
@@ -376,7 +391,7 @@ function renderLessons() {
     const record = records[index];
     button.textContent = lesson.title;
     const detail = document.createElement('small');
-    detail.textContent = lesson.keys + (record ? ' · ' + '★'.repeat(stars(record.bestAccuracy ?? record.accuracy)) : '');
+    detail.textContent = lesson.keys + (record ? ' · ' + stars(record.bestAccuracy ?? record.accuracy) + ' / 3 stars' : '');
     button.append(detail);
     button.setAttribute('aria-current', index === lessonIndex);
     button.addEventListener('click', () => resetLesson(index));
@@ -397,7 +412,7 @@ function renderDrill() {
   if (done) {
     const score = records[lessonIndex];
     const title = document.createElement('strong');
-    title.textContent = '★'.repeat(stars(score.accuracy)) + ' Lesson complete';
+    title.textContent = 'Lesson complete · ' + stars(score.accuracy) + ' / 3 stars';
     const stats = document.createElement('span');
     stats.textContent = score.wpm + ' WPM · ' + score.accuracy + '% accuracy · Best combo ' + bestCombo;
     result.replaceChildren(title, stats);
@@ -513,9 +528,18 @@ resetLesson(0);
 const wordBank = 'fern moss rain mint leaf seed bloom cloud petal grove river clover pollen meadow forest sapling garden blossom firefly orchard sunflower butterfly'.split(' ');
 const arcadeInput = byId('arcInput');
 const arcadeStart = byId('arcStart');
+const arcadeDuration = byId('arcDuration');
+const arcadeReset = byId('arcReset');
+let errors = 0, previousWrong = false;
 const arcadeWord = byId('arcWord');
 let arcTick = 0, arcDeadline = 0, flowers = 0, wordIndex = 0, arcadeBest = 0;
-try { arcadeBest = Number(localStorage.getItem('keysprout-arcade-best')) || 0; } catch {}
+function arcadeBestKey() {
+  return 'keysprout-arcade-best' + (arcadeDuration.value === '30' ? '' : '-' + arcadeDuration.value);
+}
+function readArcadeBest() {
+  try { return Number(localStorage.getItem(arcadeBestKey())) || 0; } catch { return 0; }
+}
+arcadeBest = readArcadeBest();
 byId('arcBest').textContent = 'Best: ' + arcadeBest;
 
 function showWord(value = '') {
@@ -534,16 +558,40 @@ function stopArcade(completed) {
   arcTick = 0;
   arcadeInput.disabled = true;
   arcadeInput.value = '';
-  arcadeStart.disabled = false;
+  arcadeStart.disabled = arcadeDuration.disabled = false;
+  arcadeReset.disabled = true;
+  arcadeInput.setAttribute('aria-invalid', 'false');
   arcadeStart.textContent = 'Play again';
-  arcadeWord.textContent = completed && flowers ? '🌼' : '🌱';
+  arcadeWord.textContent = completed ? 'Round complete' : 'Ready';
   if (completed && flowers > arcadeBest) {
     arcadeBest = flowers;
-    try { localStorage.setItem('keysprout-arcade-best', String(arcadeBest)); } catch {}
+    try { localStorage.setItem(arcadeBestKey(), String(arcadeBest)); } catch {}
     byId('arcBest').textContent = 'Best: ' + arcadeBest;
   }
-  byId('arcStatus').textContent = completed ? 'Round finished. Flowers grown: ' + flowers + '.' : 'Round ended. Start again when you’re ready.';
+  byId('arcStatus').textContent = completed ? 'Round finished. Words completed: ' + flowers + '.' : 'Round ended. Start again when you’re ready.';
 }
+
+function updateArcadeAccuracy() {
+  const total = flowers + errors;
+  byId('arcAccuracy').textContent = 'Clean entries ' + (total ? Math.round(flowers / total * 100) + '%' : '—');
+}
+
+arcadeDuration.addEventListener('change', () => {
+  byId('arcClock').max = byId('arcClock').value = Number(arcadeDuration.value);
+  byId('arcTime').textContent = arcadeDuration.value + 's';
+  arcadeBest = readArcadeBest();
+  byId('arcBest').textContent = 'Best: ' + arcadeBest;
+});
+arcadeReset.addEventListener('click', () => {
+  stopArcade(false);
+  flowers = errors = 0;
+  byId('arcScore').textContent = '0 words';
+  byId('arcStatus').textContent = '';
+  updateArcadeAccuracy();
+  byId('arcClock').value = Number(arcadeDuration.value);
+  byId('arcTime').textContent = arcadeDuration.value + 's';
+  arcadeStart.focus();
+});
 
 function refreshArcadeClock() {
   const remaining = Math.max(0, (arcDeadline - performance.now()) / 1000);
@@ -553,14 +601,18 @@ function refreshArcadeClock() {
 }
 
 arcadeStart.addEventListener('click', () => {
-  flowers = 0;
+  flowers = errors = 0;
+  previousWrong = false;
+  updateArcadeAccuracy();
   wordIndex = Math.floor(Math.random() * 8);
-  byId('arcScore').textContent = '0 flowers';
+  byId('arcScore').textContent = '0 words';
   byId('arcStatus').textContent = '';
   arcadeInput.value = '';
   arcadeInput.disabled = false;
-  arcadeStart.disabled = true;
-  arcDeadline = performance.now() + 30000;
+  arcadeStart.disabled = arcadeDuration.disabled = true;
+  arcadeReset.disabled = false;
+  byId('arcClock').max = Number(arcadeDuration.value);
+  arcDeadline = performance.now() + Number(arcadeDuration.value) * 1000;
   arcTick = setInterval(refreshArcadeClock, 100);
   refreshArcadeClock();
   showWord();
@@ -575,12 +627,17 @@ arcadeInput.addEventListener('input', event => {
     return;
   }
   const value = arcadeInput.value.toLowerCase();
+  const wrong = !wordBank[wordIndex].startsWith(value);
+  if (wrong && !previousWrong) errors++;
+  previousWrong = wrong;
+  updateArcadeAccuracy();
   if (value !== wordBank[wordIndex]) {
     showWord(value);
     return;
   }
   flowers++;
-  byId('arcScore').textContent = flowers + (flowers === 1 ? ' flower' : ' flowers');
+  updateArcadeAccuracy();
+  byId('arcScore').textContent = flowers + (flowers === 1 ? ' word' : ' words');
   wordIndex = (wordIndex + 1) % wordBank.length;
   arcadeInput.value = '';
   const field = byId('arcField');
