@@ -56,6 +56,31 @@ progress{width:100%;accent-color:var(--green);height:12px}
 .keyrow{display:flex;justify-content:center;gap:4px}
 .key{background:#fff;min-width:0;width:9%;padding:0;min-height:38px;font-size:clamp(.75rem,3vw,1rem)}
 .key.space{width:46%}
+
+body{background:radial-gradient(ellipse at top,#edf9dc,#f8f7ef 60%);min-height:100vh}
+main{max-width:1080px}
+.hero{position:relative;overflow:hidden;background:linear-gradient(115deg,#173f34,#267155);min-height:152px;box-shadow:0 7px 0 #143c30}
+.hero .sprout{display:grid;place-items:center;background:#ffffff1c;border:1px solid #ffffff50;border-radius:42% 58% 52% 48%;width:105px;height:105px;flex:none}
+.lesson-nav{padding:8px;background:#e4eedc;border-radius:16px;margin-top:24px;width:fit-content}
+.lesson-nav button{border:none;padding-inline:18px}
+#learnPanel{display:grid;grid-template-columns:minmax(210px, .85fr) minmax(0,2fr);gap:14px;align-items:start}
+#lessons,#drill{box-shadow:0 4px 0 #dfe9dc}
+.lesson-grid{grid-template-columns:1fr}
+.lesson-grid button{padding:12px;line-height:1.25;border-bottom-width:3px}
+.lesson-grid button small{display:block;margin-top:4px}
+.lesson-grid button[aria-current=true]{outline:2px solid #a3d48f;outline-offset:2px}
+.hud{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.hud span{background:#e8f4df;padding:5px 10px;border-radius:999px;font-weight:700;font-size:.85rem}
+.drill-progress{accent-color:#4f933c}
+.tile.next,.key.next{animation:focus-key .42s ease-out}
+.tile.error{animation:key-error .24s ease-out}
+@keyframes focus-key{from{transform:scale(.88)}to{transform:scale(1)}}
+@keyframes key-error{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.result{background:#edf5d9;border:1px solid #c8dfa6;padding:14px;border-radius:14px;margin:12px 0}
+.result strong{display:block;font-size:1.2rem}
+#finger{min-height:24px}
+@media(max-width:700px){#learnPanel{grid-template-columns:1fr;gap:0}.lesson-grid{grid-template-columns:repeat(auto-fit,minmax(135px,1fr))}.hero .sprout{width:65px;height:65px}.key{width:10%;min-height:42px}.keyrow{gap:3px}.keyboard{padding:6px}}
+@media(prefers-reduced-motion:reduce){.tile,.key{animation:none!important}}
 </style>
 </head>
 <body>
@@ -66,20 +91,20 @@ progress{width:100%;accent-color:var(--green);height:12px}
 <button id="learnTab" class="primary" aria-pressed="true">Guided lessons</button>
 <button id="testTab" aria-pressed="false">Speed test</button>
 </nav>
-<section class="card" id="lessons" aria-label="Guided typing lessons">
+<div id="learnPanel"><section class="card" id="lessons" aria-label="Guided typing lessons">
 <h2>Choose a lesson</h2>
-<p id="lessonSummary"></p>
+<p id="lessonSummary"></p><div class="hud"><span id="xp"></span></div>
 <div class="lesson-grid" id="lessonChoices"></div>
 </section>
 <section class="card" id="drill" aria-label="Current lesson">
 <h2 id="drillTitle"></h2>
-<p id="drillStage"></p>
+<p id="drillStage"></p><progress class="drill-progress" id="drillProgress" value="0" max="1" aria-label="Lesson progress"></progress><div class="hud"><span id="combo"></span><span id="liveAccuracy"></span></div>
 <div id="tiles" class="tiles" aria-label="Characters to type"></div>
 <div id="keyboard" class="keyboard" aria-label="On-screen keyboard"></div>
-<p id="finger" role="status"></p>
-<div class="actions"><button class="primary" id="activate">Start drill</button><button id="redo">Restart lesson</button></div>
+<p id="finger" role="status"></p><div class="result" id="lessonResult" role="status" hidden></div>
+<div class="actions"><button class="primary" id="activate">Start drill</button><button id="redo">Restart lesson</button><button id="advance" class="primary" hidden>Next lesson →</button></div>
 </section>
-<div id="testPanel" hidden>
+</div><div id="testPanel" hidden>
 <section class="card" aria-label="Typing test">
 <div class="actions" aria-label="Round mode"><button id="practice" class="selected" aria-pressed="true">Practice</button><button id="daily" aria-pressed="false">Daily challenge</button></div>
 <p id="unlock"></p>
@@ -307,6 +332,9 @@ let stage = 0;
 let position = 0;
 let attempts = 0;
 let hits = 0;
+let combo = 0;
+let bestCombo = 0;
+const stars = accuracy => accuracy >= 95 ? 3 : accuracy >= 85 ? 2 : 1;
 let lessonStart = 0;
 let active = false;
 let done = false;
@@ -317,10 +345,14 @@ const drillButton = byId('activate');
 
 function renderLessons() {
   byId('lessonSummary').textContent = Object.keys(records).length + ' of ' + lessons.length + ' completed';
+  byId('xp').textContent = Object.values(records).reduce((xp, record) => xp + 20 * stars(record.bestAccuracy ?? record.accuracy), 0) + ' XP';
   choices.replaceChildren(...lessons.map((lesson, index) => {
     const button = document.createElement('button');
     const record = records[index];
-    button.textContent = lesson.title + ' · ' + lesson.keys + (record ? ' · ' + record.wpm + ' WPM, ' + record.accuracy + '%' : '');
+    button.textContent = lesson.title;
+    const detail = document.createElement('small');
+    detail.textContent = lesson.keys + (record ? ' · ' + '★'.repeat(stars(record.bestAccuracy ?? record.accuracy)) : '');
+    button.append(detail);
     button.setAttribute('aria-current', index === lessonIndex);
     button.addEventListener('click', () => resetLesson(index));
     return button;
@@ -331,6 +363,20 @@ function renderDrill() {
   const lesson = lessons[lessonIndex];
   const phrase = lesson.drills[stage];
   const next = done ? '' : phrase[position];
+  byId('drillProgress').value = (stage + position / phrase.length) / lesson.drills.length;
+  byId('combo').textContent = 'Combo ' + combo;
+  byId('liveAccuracy').textContent = 'Accuracy ' + (attempts ? Math.round(hits / attempts * 100) + '%' : '—');
+  const result = byId('lessonResult');
+  result.hidden = !done;
+  byId('advance').hidden = !done || lessonIndex === lessons.length - 1;
+  if (done) {
+    const score = records[lessonIndex];
+    const title = document.createElement('strong');
+    title.textContent = '★'.repeat(stars(score.accuracy)) + ' Lesson complete';
+    const stats = document.createElement('span');
+    stats.textContent = score.wpm + ' WPM · ' + score.accuracy + '% accuracy · Best combo ' + bestCombo;
+    result.replaceChildren(title, stats);
+  }
   byId('drillTitle').textContent = lesson.title + ' — ' + lesson.keys;
   byId('drillStage').textContent = 'Drill ' + (stage + 1) + ' of ' + lesson.drills.length;
   byId('tiles').replaceChildren(...Array.from(phrase, (letter, index) => {
@@ -341,9 +387,8 @@ function renderDrill() {
   }));
   for (const [letter, key] of keys) key.classList.toggle('next', letter === next);
   const fingerName = next === ' ' ? 'Either thumb' : fingerGroups.find(([group]) => next && group.includes(next))?.[1];
-  const record = records[lessonIndex];
   byId('finger').textContent = done
-    ? 'Lesson complete! ' + record.wpm + ' WPM · ' + record.accuracy + '% accuracy.'
+    ? ''
     : (mistake ? 'Try again. ' : '') + 'Next: ' + (next === ' ' ? 'Space' : next.toUpperCase()) + ' · ' + fingerName;
   drillButton.disabled = active;
   drillButton.textContent = done ? 'Practise again' : active ? 'Drill running' : 'Start drill';
@@ -351,7 +396,7 @@ function renderDrill() {
 
 function resetLesson(index) {
   lessonIndex = index;
-  stage = position = attempts = hits = lessonStart = 0;
+  stage = position = attempts = hits = lessonStart = combo = bestCombo = 0;
   active = done = mistake = false;
   renderLessons();
   renderDrill();
@@ -364,6 +409,8 @@ function typeLetter(letter) {
   const drills = lessons[lessonIndex].drills;
   const phrase = drills[stage];
   mistake = letter !== phrase[position];
+  combo = mistake ? 0 : combo + 1;
+  bestCombo = Math.max(bestCombo, combo);
   if (!mistake) {
     hits++;
     position++;
@@ -372,7 +419,13 @@ function typeLetter(letter) {
         active = false;
         done = true;
         const elapsed = Math.max(1000, performance.now() - lessonStart);
-        records[lessonIndex] = { wpm: Math.round(hits * 12000 / elapsed), accuracy: Math.round(hits / attempts * 100) };
+        const accuracy = Math.round(hits / attempts * 100);
+        const previous = records[lessonIndex];
+        records[lessonIndex] = {
+          wpm: Math.round(hits * 12000 / elapsed),
+          accuracy,
+          bestAccuracy: Math.max(accuracy, previous?.bestAccuracy ?? previous?.accuracy ?? 0)
+        };
         try { localStorage.setItem(lessonStorage, JSON.stringify(records)); } catch {}
         renderLessons();
       } else {
@@ -411,12 +464,16 @@ drillButton.addEventListener('click', () => {
   renderDrill();
   keys.get(lessons[lessonIndex].drills[stage][position]).focus();
 });
+byId('advance').addEventListener('click', () => {
+  resetLesson(lessonIndex + 1);
+  drillButton.focus();
+});
 byId('redo').addEventListener('click', () => resetLesson(lessonIndex));
 for (const [id, learn] of [['learnTab', true], ['testTab', false]]) {
   byId(id).addEventListener('click', () => {
     if (!learn && active) resetLesson(lessonIndex);
     if (learn && timer) clearRound();
-    byId('lessons').hidden = byId('drill').hidden = !learn;
+    byId('learnPanel').hidden = !learn;
     byId('testPanel').hidden = learn;
     byId('learnTab').classList.toggle('primary', learn);
     byId('testTab').classList.toggle('primary', !learn);
