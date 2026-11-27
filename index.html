@@ -42,12 +42,44 @@ progress{width:100%;accent-color:var(--green);height:12px}
 .history li{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
 .selected{background:var(--mint);border-color:var(--green)}
 #unlock{margin:8px 0;color:var(--muted);font-size:.9rem}
+[hidden]{display:none!important}
+.lesson-nav{margin-top:16px}
+.lesson-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px}
+.lesson-grid button{text-align:left;background:#eff7ef}
+.lesson-grid button[aria-current=true]{background:#216448;color:white}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(32px,1fr));gap:6px;margin:14px 0}
+.tile{border-radius:9px;background:#f0f5ef;text-align:center;padding:8px 2px;font:700 1.4rem ui-monospace,monospace}
+.tile.next,.key.next{background:#216448;color:white}
+.tile.error{background:#ffe0df;color:#8c2024}
+.tile.correct{background:#d9f5dd}
+.keyboard{background:#193b30;padding:10px;border-radius:14px;display:grid;gap:5px}
+.keyrow{display:flex;justify-content:center;gap:4px}
+.key{background:#fff;min-width:0;width:9%;padding:0;min-height:38px;font-size:clamp(.75rem,3vw,1rem)}
+.key.space{width:46%}
 </style>
 </head>
 <body>
 <main>
 <header><span>🌱 KeySprout</span><span id="best">Best —</span></header>
-<section class="hero"><div><h1>Grow your typing skills</h1><p>Pick a round and type the passage before time runs out.</p></div><div class="sprout" aria-hidden="true">🪴</div></section>
+<section class="hero"><div><h1>Grow your typing skills</h1><p>Learn which fingers to use, then measure your speed.</p></div><div class="sprout" aria-hidden="true">🪴</div></section>
+<nav class="actions lesson-nav" aria-label="Training mode">
+<button id="learnTab" class="primary" aria-pressed="true">Guided lessons</button>
+<button id="testTab" aria-pressed="false">Speed test</button>
+</nav>
+<section class="card" id="lessons" aria-label="Guided typing lessons">
+<h2>Choose a lesson</h2>
+<p id="lessonSummary"></p>
+<div class="lesson-grid" id="lessonChoices"></div>
+</section>
+<section class="card" id="drill" aria-label="Current lesson">
+<h2 id="drillTitle"></h2>
+<p id="drillStage"></p>
+<div id="tiles" class="tiles" aria-label="Characters to type"></div>
+<div id="keyboard" class="keyboard" aria-label="On-screen keyboard"></div>
+<p id="finger" role="status"></p>
+<div class="actions"><button class="primary" id="activate">Start drill</button><button id="redo">Restart lesson</button></div>
+</section>
+<div id="testPanel" hidden>
 <section class="card" aria-label="Typing test">
 <div class="actions" aria-label="Round mode"><button id="practice" class="selected" aria-pressed="true">Practice</button><button id="daily" aria-pressed="false">Daily challenge</button></div>
 <p id="unlock"></p>
@@ -63,6 +95,7 @@ progress{width:100%;accent-color:var(--green);height:12px}
 </section>
 <section class="card"><h2>Recent scores</h2><p id="emptyHistory">Finish a round to see your results here.</p><ul id="history" class="history"></ul></section>
 <details><summary>How scoring works</summary><p>WPM estimates words from correctly typed characters, counting five characters as one word. Accuracy is the share of characters in your final entry that match the passage at the same position. The best score is saved on this browser.</p></details>
+</div>
 </main>
 <script>
 'use strict';
@@ -253,6 +286,145 @@ dailyButton.addEventListener('click', () => switchMode('daily'));
 showBest();
 clearRound();
 showProgress();
+
+const lessons = [
+  { title: 'Index fingers', keys: 'F, J & Space', drills: ['fff jjj', 'fj fj jf', 'jff jfjf'] },
+  { title: 'Home row', keys: 'A, S, D, K, L', drills: ['asd lkj', 'ask dad', 'fall salad'] },
+  { title: 'Top row', keys: 'Q through P', drills: ['qwer uiop', 'type quiet', 'write tall'] },
+  { title: 'Bottom row', keys: 'Z through M', drills: ['zxc vbnm', 'mix cab', 'zoom van'] },
+  { title: 'Everyday words', keys: 'Mixed letters', drills: ['calm hands', 'find rhythm', 'type each day'] }
+];
+const fingerGroups = [
+  ['qaz', 'Left pinky'], ['wsx', 'Left ring finger'], ['edc', 'Left middle finger'],
+  ['rfvtgb', 'Left index finger'], ['yhnujm', 'Right index finger'],
+  ['ik', 'Right middle finger'], ['ol', 'Right ring finger'], ['p', 'Right pinky']
+];
+const lessonStorage = 'keysprout-lessons-v1';
+let records = {};
+try { records = JSON.parse(localStorage.getItem(lessonStorage)) || {}; } catch {}
+let lessonIndex = 0;
+let stage = 0;
+let position = 0;
+let attempts = 0;
+let hits = 0;
+let lessonStart = 0;
+let active = false;
+let done = false;
+let mistake = false;
+const keys = new Map();
+const choices = byId('lessonChoices');
+const drillButton = byId('activate');
+
+function renderLessons() {
+  byId('lessonSummary').textContent = Object.keys(records).length + ' of ' + lessons.length + ' completed';
+  choices.replaceChildren(...lessons.map((lesson, index) => {
+    const button = document.createElement('button');
+    const record = records[index];
+    button.textContent = lesson.title + ' · ' + lesson.keys + (record ? ' · ' + record.wpm + ' WPM, ' + record.accuracy + '%' : '');
+    button.setAttribute('aria-current', index === lessonIndex);
+    button.addEventListener('click', () => resetLesson(index));
+    return button;
+  }));
+}
+
+function renderDrill() {
+  const lesson = lessons[lessonIndex];
+  const phrase = lesson.drills[stage];
+  const next = done ? '' : phrase[position];
+  byId('drillTitle').textContent = lesson.title + ' — ' + lesson.keys;
+  byId('drillStage').textContent = 'Drill ' + (stage + 1) + ' of ' + lesson.drills.length;
+  byId('tiles').replaceChildren(...Array.from(phrase, (letter, index) => {
+    const tile = document.createElement('span');
+    tile.className = 'tile' + (index < position ? ' correct' : index === position ? mistake ? ' error' : ' next' : '');
+    tile.textContent = letter === ' ' ? '␣' : letter;
+    return tile;
+  }));
+  for (const [letter, key] of keys) key.classList.toggle('next', letter === next);
+  const fingerName = next === ' ' ? 'Either thumb' : fingerGroups.find(([group]) => next && group.includes(next))?.[1];
+  const record = records[lessonIndex];
+  byId('finger').textContent = done
+    ? 'Lesson complete! ' + record.wpm + ' WPM · ' + record.accuracy + '% accuracy.'
+    : (mistake ? 'Try again. ' : '') + 'Next: ' + (next === ' ' ? 'Space' : next.toUpperCase()) + ' · ' + fingerName;
+  drillButton.disabled = active;
+  drillButton.textContent = done ? 'Practise again' : active ? 'Drill running' : 'Start drill';
+}
+
+function resetLesson(index) {
+  lessonIndex = index;
+  stage = position = attempts = hits = lessonStart = 0;
+  active = done = mistake = false;
+  renderLessons();
+  renderDrill();
+}
+
+function typeLetter(letter) {
+  if (!active) return;
+  if (!attempts) lessonStart = performance.now();
+  attempts++;
+  const drills = lessons[lessonIndex].drills;
+  const phrase = drills[stage];
+  mistake = letter !== phrase[position];
+  if (!mistake) {
+    hits++;
+    position++;
+    if (position === phrase.length) {
+      if (stage + 1 === drills.length) {
+        active = false;
+        done = true;
+        const elapsed = Math.max(1000, performance.now() - lessonStart);
+        records[lessonIndex] = { wpm: Math.round(hits * 12000 / elapsed), accuracy: Math.round(hits / attempts * 100) };
+        try { localStorage.setItem(lessonStorage, JSON.stringify(records)); } catch {}
+        renderLessons();
+      } else {
+        stage++;
+        position = 0;
+      }
+    }
+  }
+  renderDrill();
+}
+
+for (const row of ['qwertyuiop', 'asdfghjkl', 'zxcvbnm', ' ']) {
+  const group = document.createElement('div');
+  group.className = 'keyrow';
+  for (const letter of row) {
+    const key = document.createElement('button');
+    key.className = letter === ' ' ? 'key space' : 'key';
+    key.textContent = letter === ' ' ? 'Space' : letter.toUpperCase();
+    key.addEventListener('click', () => typeLetter(letter));
+    keys.set(letter, key);
+    group.append(key);
+  }
+  byId('keyboard').append(group);
+}
+document.addEventListener('keydown', event => {
+  if (!active || event.ctrlKey || event.altKey || event.metaKey || event.isComposing) return;
+  if (event.key === ' ' && event.target.closest?.('button:not(.key)')) return;
+  const letter = event.key.toLowerCase();
+  if (!keys.has(letter)) return;
+  event.preventDefault();
+  if (!event.repeat) typeLetter(letter);
+});
+drillButton.addEventListener('click', () => {
+  if (done) resetLesson(lessonIndex);
+  active = true;
+  renderDrill();
+  keys.get(lessons[lessonIndex].drills[stage][position]).focus();
+});
+byId('redo').addEventListener('click', () => resetLesson(lessonIndex));
+for (const [id, learn] of [['learnTab', true], ['testTab', false]]) {
+  byId(id).addEventListener('click', () => {
+    if (!learn && active) resetLesson(lessonIndex);
+    if (learn && timer) clearRound();
+    byId('lessons').hidden = byId('drill').hidden = !learn;
+    byId('testPanel').hidden = learn;
+    byId('learnTab').classList.toggle('primary', learn);
+    byId('testTab').classList.toggle('primary', !learn);
+    byId('learnTab').setAttribute('aria-pressed', learn);
+    byId('testTab').setAttribute('aria-pressed', !learn);
+  });
+}
+resetLesson(0);
 </script>
 </body>
 </html>
