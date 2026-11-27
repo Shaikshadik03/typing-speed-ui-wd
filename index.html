@@ -81,6 +81,19 @@ main{max-width:1080px}
 #finger{min-height:24px}
 @media(max-width:700px){#learnPanel{grid-template-columns:1fr;gap:0}.lesson-grid{grid-template-columns:repeat(auto-fit,minmax(135px,1fr))}.hero .sprout{width:65px;height:65px}.key{width:10%;min-height:42px}.keyrow{gap:3px}.keyboard{padding:6px}}
 @media(prefers-reduced-motion:reduce){.tile,.key{animation:none!important}}
+
+#arcade{background:#183b31;color:#fff;box-shadow:0 6px 0 #bdd5b4}
+#arcade p{color:#d9efdb}
+#arcade .hud span{color:#183b31}
+.arc-field{min-height:128px;display:grid;place-items:center;border-radius:18px;background:radial-gradient(ellipse at bottom,#42764e,#234d3c 75%);margin:14px 0}
+#arcWord{font:800 clamp(1.7rem,8vw,3rem) ui-monospace,monospace;overflow-wrap:anywhere;text-align:center}
+#arcWord .grown{color:#bdf574}
+.arc-field.bloom{animation:bloom .32s ease-out}
+@keyframes bloom{50%{box-shadow:inset 0 0 45px #98ce7266}}
+#arcade input{width:100%;padding:12px;margin:6px 0 12px;border:1px solid var(--line);border-radius:10px;font:inherit;color:var(--ink)}
+#arcade input[aria-invalid=true]{border:2px solid #d37b62}
+#arcade progress{accent-color:#bdf574}
+@media(prefers-reduced-motion:reduce){.arc-field.bloom{animation:none}}
 </style>
 </head>
 <body>
@@ -89,7 +102,7 @@ main{max-width:1080px}
 <section class="hero"><div><h1>Grow your typing skills</h1><p>Learn which fingers to use, then measure your speed.</p></div><div class="sprout" aria-hidden="true">🪴</div></section>
 <nav class="actions lesson-nav" aria-label="Training mode">
 <button id="learnTab" class="primary" aria-pressed="true">Guided lessons</button>
-<button id="testTab" aria-pressed="false">Speed test</button>
+<button id="testTab" aria-pressed="false">Speed test</button><button id="arcTab" aria-pressed="false">Arcade</button>
 </nav>
 <div id="learnPanel"><section class="card" id="lessons" aria-label="Guided typing lessons">
 <h2>Choose a lesson</h2>
@@ -121,6 +134,18 @@ main{max-width:1080px}
 <section class="card"><h2>Recent scores</h2><p id="emptyHistory">Finish a round to see your results here.</p><ul id="history" class="history"></ul></section>
 <details><summary>How scoring works</summary><p>WPM estimates words from correctly typed characters, counting five characters as one word. Accuracy is the share of characters in your final entry that match the passage at the same position. The best score is saved on this browser.</p></details>
 </div>
+
+<section class="card" id="arcade" hidden aria-label="Word Bloom arcade">
+<h2>🌼 Word Bloom</h2>
+<p>Type each word to grow a flower. How many can you grow in 30 seconds?</p>
+<div class="hud"><span id="arcTime">30s</span><span id="arcScore">0 flowers</span><span id="arcBest">Best: 0</span></div>
+<progress id="arcClock" max="30" value="30" aria-label="Seconds remaining"></progress>
+<div class="arc-field" id="arcField"><div id="arcWord">🌱</div></div>
+<label for="arcInput">Type the word</label>
+<input id="arcInput" disabled autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="arcWord">
+<div class="actions"><button id="arcStart">Start round</button></div>
+<p id="arcStatus" role="status"></p>
+</section>
 </main>
 <script>
 'use strict';
@@ -469,19 +494,102 @@ byId('advance').addEventListener('click', () => {
   drillButton.focus();
 });
 byId('redo').addEventListener('click', () => resetLesson(lessonIndex));
-for (const [id, learn] of [['learnTab', true], ['testTab', false]]) {
+for (const [id, panel] of [['learnTab', 'learnPanel'], ['testTab', 'testPanel'], ['arcTab', 'arcade']]) {
   byId(id).addEventListener('click', () => {
-    if (!learn && active) resetLesson(lessonIndex);
-    if (learn && timer) clearRound();
-    byId('learnPanel').hidden = !learn;
-    byId('testPanel').hidden = learn;
-    byId('learnTab').classList.toggle('primary', learn);
-    byId('testTab').classList.toggle('primary', !learn);
-    byId('learnTab').setAttribute('aria-pressed', learn);
-    byId('testTab').setAttribute('aria-pressed', !learn);
+
+    if (panel !== 'learnPanel' && active) resetLesson(lessonIndex);
+    if (panel !== 'testPanel' && timer) clearRound();
+    if (panel !== 'arcade' && arcTick) stopArcade(false);
+    for (const [tabId, panelId] of [['learnTab', 'learnPanel'], ['testTab', 'testPanel'], ['arcTab', 'arcade']]) {
+      const selected = panel === panelId;
+      byId(panelId).hidden = !selected;
+      byId(tabId).classList.toggle('primary', selected);
+      byId(tabId).setAttribute('aria-pressed', selected);
+    }
   });
 }
 resetLesson(0);
+
+const wordBank = 'fern moss rain mint leaf seed bloom cloud petal grove river clover pollen meadow forest sapling garden blossom firefly orchard sunflower butterfly'.split(' ');
+const arcadeInput = byId('arcInput');
+const arcadeStart = byId('arcStart');
+const arcadeWord = byId('arcWord');
+let arcTick = 0, arcDeadline = 0, flowers = 0, wordIndex = 0, arcadeBest = 0;
+try { arcadeBest = Number(localStorage.getItem('keysprout-arcade-best')) || 0; } catch {}
+byId('arcBest').textContent = 'Best: ' + arcadeBest;
+
+function showWord(value = '') {
+  const word = wordBank[wordIndex];
+  let match = 0;
+  while (match < value.length && match < word.length && value[match] === word[match]) match++;
+  arcadeInput.setAttribute('aria-invalid', match < value.length);
+  const prefix = document.createElement('span');
+  prefix.className = 'grown';
+  prefix.textContent = word.slice(0, match);
+  arcadeWord.replaceChildren(prefix, word.slice(match));
+}
+
+function stopArcade(completed) {
+  clearInterval(arcTick);
+  arcTick = 0;
+  arcadeInput.disabled = true;
+  arcadeInput.value = '';
+  arcadeStart.disabled = false;
+  arcadeStart.textContent = 'Play again';
+  arcadeWord.textContent = completed && flowers ? '🌼' : '🌱';
+  if (completed && flowers > arcadeBest) {
+    arcadeBest = flowers;
+    try { localStorage.setItem('keysprout-arcade-best', String(arcadeBest)); } catch {}
+    byId('arcBest').textContent = 'Best: ' + arcadeBest;
+  }
+  byId('arcStatus').textContent = completed ? 'Round finished. Flowers grown: ' + flowers + '.' : 'Round ended. Start again when you’re ready.';
+}
+
+function refreshArcadeClock() {
+  const remaining = Math.max(0, (arcDeadline - performance.now()) / 1000);
+  byId('arcTime').textContent = Math.ceil(remaining) + 's';
+  byId('arcClock').value = remaining;
+  if (!remaining) stopArcade(true);
+}
+
+arcadeStart.addEventListener('click', () => {
+  flowers = 0;
+  wordIndex = Math.floor(Math.random() * 8);
+  byId('arcScore').textContent = '0 flowers';
+  byId('arcStatus').textContent = '';
+  arcadeInput.value = '';
+  arcadeInput.disabled = false;
+  arcadeStart.disabled = true;
+  arcDeadline = performance.now() + 30000;
+  arcTick = setInterval(refreshArcadeClock, 100);
+  refreshArcadeClock();
+  showWord();
+  arcadeInput.focus();
+});
+arcadeInput.addEventListener('paste', event => event.preventDefault());
+arcadeInput.addEventListener('drop', event => event.preventDefault());
+arcadeInput.addEventListener('input', event => {
+  if (!arcTick || event.isComposing) return;
+  if (performance.now() >= arcDeadline) {
+    refreshArcadeClock();
+    return;
+  }
+  const value = arcadeInput.value.toLowerCase();
+  if (value !== wordBank[wordIndex]) {
+    showWord(value);
+    return;
+  }
+  flowers++;
+  byId('arcScore').textContent = flowers + (flowers === 1 ? ' flower' : ' flowers');
+  wordIndex = (wordIndex + 1) % wordBank.length;
+  arcadeInput.value = '';
+  const field = byId('arcField');
+  field.classList.remove('bloom');
+  requestAnimationFrame(() => {
+    if (arcTick) field.classList.add('bloom');
+  });
+  showWord();
+});
 </script>
 </body>
 </html>
