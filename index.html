@@ -14,7 +14,7 @@
 <a class="skip" href="#content">Skip to content</a><header><button class="brand" id="homeTab" aria-label="KeySprout home"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 20C5 20 4 11 4 7c9 0 12 5 12 13ZM16 15C16 6 22 4 28 4c0 8-5 11-12 11Z"/></svg>KeySprout<span class="brand-tag">TYPING ACADEMY</span></button><div class="header-tools"><span id="best">Best —</span><button id="themeToggle" aria-label="Switch to dark theme">Dark theme</button></div></header>
 <nav class="actions lesson-nav" aria-label="Main navigation">
 <button id="learnTab" aria-pressed="false">Learn</button><button id="testTab" aria-pressed="false">Tests</button><button id="arcTab" aria-pressed="false">Arcade</button><button id="progressTab" aria-pressed="false">Progress</button>
-</nav><div id="content" tabindex="-1"></div>
+</nav><div id="content" tabindex="-1"></div><p id="storageNotice" class="storage-notice" role="status" hidden>Browser storage is unavailable or full. You can keep practising, but new progress may not survive a reload.</p>
 <section id="homePanel" aria-label="Home dashboard">
 <div class="page-heading"><div><p class="eyebrow">A LITTLE PRACTICE. LASTING PROGRESS.</p><h1>Your next chapter starts here.</h1></div><span class="pill">At your own pace</span></div>
 <section class="hero"><div><p class="eyebrow">BUILD A HABIT, ONE KEY AT A TIME</p><h2>Small steps.<br>Confident hands.</h2><p>A calmer way to learn to type. Find your rhythm with a lesson made for your next step.</p><button class="primary" id="continueLearning">Continue learning</button><p class="hero-next" id="nextLessonName"></p></div><img class="hero-photo" src="./assets/keyboard.jpg" alt="Mechanical keyboard on a wooden desk" decoding="async" width="800" height="600"></section>
@@ -32,11 +32,11 @@
 </section>
 <section class="card" id="drill" aria-label="Current lesson">
 <h2 id="drillTitle"></h2>
-<p id="drillStage"></p><progress class="drill-progress" id="drillProgress" value="0" max="1" aria-label="Lesson progress"></progress><div class="hud"><span id="combo"></span><span id="liveAccuracy"></span></div>
+<p id="lessonIntro"></p><p id="drillStage" class="eyebrow"></p><progress class="drill-progress" id="drillProgress" value="0" max="1" aria-label="Lesson progress"></progress><div class="hud"><span id="combo"></span><span id="liveAccuracy"></span></div>
 <div id="tiles" class="tiles" aria-label="Characters to type"></div>
-<div id="keyboard" class="keyboard" aria-label="On-screen keyboard"></div>
-<p id="finger" role="status"></p><div class="result" id="lessonResult" role="status" hidden></div>
-<div class="actions"><button class="primary" id="activate">Start drill</button><button id="redo">Restart lesson</button><button id="advance" class="primary" hidden>Next lesson</button></div>
+<label for="lessonInput" class="input-label">Practice input <span class="muted">— tap here to use your phone keyboard</span></label><input id="lessonInput" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" disabled placeholder="Start the lesson to type" aria-describedby="finger lessonFeedback"><p id="lessonFeedback" role="status"></p><div id="keyboard" class="keyboard" aria-label="On-screen keyboard"></div>
+<p id="finger"></p><details class="finger-guide"><summary>Finger placement guide</summary><div id="fingerLegend"></div><p>Rest your index fingers on the raised marks on F and J. Keep your wrists relaxed. Use the opposite hand for Shift.</p></details><button id="soundToggle" aria-pressed="false" class="quiet">Sound off</button><div class="result" id="lessonResult" role="status" hidden></div>
+<div class="actions"><button class="primary" id="activate">Start drill</button><button id="redo">Restart lesson</button><button id="advance" class="primary" hidden>Next lesson</button><button id="mistakeDrill" hidden>Practice tricky keys</button></div>
 </section>
 </div><div id="testPanel" hidden>
 <section class="card" aria-label="Typing test">
@@ -78,6 +78,12 @@
 <div class="table-scroll"><table id="dashTable" hidden><thead><tr><th scope="col">Date</th><th scope="col">Mode</th><th scope="col">WPM</th><th scope="col">Accuracy</th></tr></thead><tbody id="dashRows"></tbody></table></div>
 </section>
 <footer><span>KeySprout <span class="muted">/ Practice with purpose.</span></span><span>Progress stays in this browser.</span></footer></main>
+<script src="./js/storage.js" defer></script>
+<script src="./js/curriculum.js" defer></script>
+<script src="./js/tests.js" defer></script>
+<script src="./js/lessons.js" defer></script>
+<script src="./js/arcade.js" defer></script>
+<script src="./js/progress.js" defer></script>
 <script src="./js/app.js" defer></script>
 </body>
 </html>
