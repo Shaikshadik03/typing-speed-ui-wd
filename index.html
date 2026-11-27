@@ -56,28 +56,31 @@
 <details><summary>How scoring works</summary><p>WPM = correctly typed characters ÷ 5 ÷ elapsed minutes. Accuracy = matching characters in your final entry ÷ characters entered × 100. Spaces and punctuation count. Backspace corrections are allowed; the mistake breakdown also remembers corrected errors. No input gives 0 WPM and 0% accuracy and is not saved. Comparisons use the same text mode, round type and chosen duration. Older results without a duration are kept in history but excluded from comparisons.</p></details>
 </div>
 
-<section class="card" id="arcade" hidden aria-label="Word Bloom arcade">
-<h2>Word Bloom</h2>
-<p>Type each word before the timer ends. Choose a round length and beat your best score.</p>
+<section id="arcade" hidden aria-label="Typing arcade">
+<div class="page-heading"><div><p class="eyebrow">A LITTLE PLAY GOES A LONG WAY</p><h1>Practice, with a playful twist.</h1></div></div>
+<div class="game-tabs actions" aria-label="Choose a game"><button id="bloomGame" aria-pressed="true" class="selected">Word Bloom</button><button id="relayGame" aria-pressed="false">Word Relay</button></div>
+<div class="game-layout"><div class="game-main"><h2 id="gameTitle">Word Bloom</h2><p id="gameInstructions"></p>
 <div class="controls arcade-controls"><label for="arcDuration">Round length</label><select id="arcDuration"><option>15</option><option selected>30</option><option>60</option></select><span>seconds</span></div>
-<div class="hud"><span id="arcAccuracy">Clean entries —</span><span id="arcTime">30s</span><span id="arcScore">0 words</span><span id="arcBest">Best: 0</span></div>
+<div class="hud"><span id="arcTime">30s</span><span id="arcScore">0 words</span><span id="arcAccuracy">Clean entries —</span><span id="arcCombo">Combo 0</span><span id="arcRound" hidden>Round 1</span></div>
 <progress id="arcClock" max="30" value="30" aria-label="Seconds remaining"></progress>
-<div class="arc-field" id="arcField"><div id="arcWord">Ready</div></div>
-<label for="arcInput">Type the word</label>
-<input id="arcInput" disabled autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="arcWord">
-<div class="actions"><button id="arcStart">Start round</button><button id="arcReset" disabled>Reset</button></div>
-<p id="arcStatus" role="status"></p>
+<div class="arc-field" id="arcField"><p class="eyebrow" id="arcPrompt">YOUR NEXT WORD</p><div id="arcWord">Ready to grow?</div><p id="arcFeedback" role="status"></p></div>
+<label for="arcInput">Type the word <span class="muted">— tap to open your phone keyboard</span></label><input id="arcInput" disabled autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="arcWord arcFeedback">
+<div class="actions"><button class="primary" id="arcStart">Start round</button><button id="arcReset" disabled>Restart round</button></div>
+<div class="result" id="arcResult" role="status" hidden></div><p id="arcStatus" role="status"></p></div>
+<aside class="garden-panel"><div class="section-heading"><h3 id="gardenTitle">Your growing garden</h3><span id="arcBest" class="pill">Best: 0</span></div><p id="gardenCaption">Every word plants something new.</p><div id="garden" class="garden" aria-label="Your garden"></div><div id="relayTrack" hidden></div><p class="garden-note" id="gardenNote">A small beginning. Room to grow.</p></aside></div>
 </section>
-
-<section class="card" id="dashboard" hidden aria-label="Practice progress">
-<div class="dashboard-top"><h2>Practice progress</h2><label for="roundFilter">Show <select id="roundFilter"><option value="all">All tests</option><option value="practice">Practice</option><option value="daily">Daily challenge</option></select></label></div>
-<div class="stats"><div><strong id="dashCount">0</strong>Saved tests</div><div><strong id="dashSpeed">—</strong>Avg. WPM</div><div><strong id="dashAccuracy">—</strong>Avg. accuracy</div></div>
-<div class="dashboard-top"><h2>Daily test goal</h2><label for="goalTarget">Tests per day <select id="goalTarget"><option>1</option><option selected>3</option><option>5</option><option>10</option></select></label></div>
-<progress id="goalProgress" aria-label="Daily test goal progress"></progress><p id="goalText"></p>
-<h2>Recent speed trend</h2><ol class="trend" id="speedTrend"></ol><p id="dashEmpty">Finish a speed test to see your progress here.</p>
-<div class="table-scroll"><table id="dashTable" hidden><thead><tr><th scope="col">Date</th><th scope="col">Mode</th><th scope="col">WPM</th><th scope="col">Accuracy</th></tr></thead><tbody id="dashRows"></tbody></table></div>
+<section id="dashboard" hidden aria-label="Practice progress">
+<div class="page-heading"><div><p class="eyebrow">EVERY SESSION ADDS UP</p><h1>See how far you have come.</h1></div><button id="exportCsv">Export CSV</button></div>
+<div class="card"><div class="controls progress-filters"><label for="dateFilter">Date range</label><select id="dateFilter"><option value="all">All time</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option></select><label for="modeFilter">Text mode</label><select id="modeFilter"><option value="all">All text modes</option><option value="everyday">Everyday Text</option><option value="symbols">Numbers and Symbols</option><option value="code">Code</option></select><label for="roundFilter">Round type</label><select id="roundFilter"><option value="all">All tests</option><option value="practice">Practice</option><option value="daily">Daily challenge</option></select></div>
+<div class="stats"><div><strong id="dashCount">0</strong>Saved tests</div><div><strong id="dashSpeed">—</strong>Average WPM</div><div><strong id="dashAccuracy">—</strong>Average accuracy</div></div><p id="dashEmpty">Finish a speed test to see your progress here.</p><div class="trend-grid"><figure><figcaption>Speed · WPM</figcaption><div id="speedTrend"></div></figure><figure><figcaption>Accuracy · %</figcaption><div id="accuracyTrend"></div></figure></div><p class="muted small">Latest 10 matching tests, oldest to newest. Detailed values are in Recent attempts below.</p></div>
+<div class="progress-grid"><section class="card"><h2>Personal records</h2><p class="small">Best WPM for each mode and duration in this view.</p><ul id="personalRecords" class="record-list"></ul></section><section class="card"><h2>Your lesson journey</h2><p id="completionText"></p><progress id="completionProgress" max="10" value="0" aria-label="Lessons completed"></progress><div id="unitProgress"></div><button id="progressContinue">Continue learning</button></section></div>
+<section class="card"><h2>A little extra attention</h2><p id="mistakeContext">Keys missed in your saved tests and lessons, including errors you corrected.</p><div id="mistakeBreakdown"></div><button id="progressDrill" hidden>Practice these keys</button></section>
+<section class="card"><h2>Recent attempts</h2><p class="small" id="attemptCount"></p><div class="table-scroll"><table id="dashTable" hidden><caption class="sr-only">Recent typing test results</caption><thead><tr><th scope="col">Date</th><th scope="col">Mode</th><th scope="col">Time</th><th scope="col">WPM</th><th scope="col">Accuracy</th><th scope="col">Errors</th></tr></thead><tbody id="dashRows"></tbody></table></div></section>
+<section class="card settings"><h2>Make practice your own</h2><div class="settings-grid"><div><label for="goalTarget">Daily test goal</label><select id="goalTarget"><option>1</option><option selected>3</option><option>5</option><option>10</option></select><progress id="goalProgress" aria-label="Daily test goal progress"></progress><p id="goalText"></p></div><div><label for="settingTheme">Appearance</label><select id="settingTheme"><option value="light">Light</option><option value="dark">Dark</option></select><label class="check-label"><input id="settingSound" type="checkbox"> Lesson key sounds</label><p class="small">Sound starts off. Motion follows your device preference.</p></div></div><p class="small">Your history and settings are saved in this browser on this device. Clearing site data removes them. CSV export downloads the tests in your current filter. A completed lesson or saved test counts toward your streak once per local calendar day; arcade rounds do not count.</p></section>
+<p id="exportStatus" role="status"></p>
 </section>
-<footer><span>KeySprout <span class="muted">/ Practice with purpose.</span></span><span>Progress stays in this browser.</span></footer></main>
+<footer><span>KeySprout <span class="muted">/ Practice with purpose.</span></span><span>Progress stays in this browser.</span></footer>
+</main>
 <script src="./js/storage.js" defer></script>
 <script src="./js/curriculum.js" defer></script>
 <script src="./js/passages.js" defer></script>

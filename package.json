@@ -19,6 +19,8 @@
   },
   "homepage": "https://github.com/Shaikshadik03/typing-speed-ui-wd#readme",
   "devDependencies": {
-    "@playwright/test": "^1.65.1"
+    "@axe-core/playwright": "^4.14.1",
+    "@playwright/test": "^1.65.1",
+    "prettier": "^3.10.1"
   }
 }

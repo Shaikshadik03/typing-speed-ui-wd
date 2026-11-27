@@ -53,6 +53,7 @@ function renderDrill() {
   }));
   const hint = keyHint(next);
   for (const [char,key] of keys) {
+    if (char === 'Left Shift' || char === 'Right Shift') key.setAttribute('aria-pressed', String(shiftOn));
     key.classList.toggle('next', !!next && (char === hint.base || hint.shifted && char === hint.shift));
     if (char.length === 1 && char !== ' ') {
       const shifted = Object.entries(shiftedKeys).find(([,base]) => base === char)?.[0];

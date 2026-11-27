@@ -31,7 +31,10 @@ function scoreTest(now=performance.now()){
   const elapsed=Math.max(1000,Math.min(now,deadline)-startedAt);
   return {score:Math.round(correct*12000/elapsed),percent:submittedText.length?Math.round(correct/submittedText.length*100):0,errors:submittedText.length-correct,correct,elapsed};
 }
+let practiceOptions = { textMode: level.value, duration: duration.value };
 function switchMode(next){
+  if (next === 'daily' && mode !== 'daily') { practiceOptions = { textMode: level.value, duration: duration.value }; level.value = 'everyday'; duration.value = '60'; }
+  if (next === 'practice' && mode === 'daily') { level.value = practiceOptions.textMode; duration.value = practiceOptions.duration; }
   mode=next;
   for(const name of ['practice','daily']){byId(name).classList.toggle('selected',name===mode);byId(name).setAttribute('aria-pressed',String(name===mode));}
   clearRound();showProgress();

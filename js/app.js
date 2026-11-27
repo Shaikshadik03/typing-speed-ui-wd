@@ -9,7 +9,7 @@ for (const [id, panel] of [['homeTab', 'homePanel'], ['learnTab', 'learnPanel'],
     for (const [tabId, panelId] of [['homeTab', 'homePanel'], ['learnTab', 'learnPanel'], ['testTab', 'testPanel'], ['arcTab', 'arcade'], ['progressTab', 'dashboard']]) {
       const selected = panel === panelId;
       byId(panelId).hidden = !selected;
-      byId(tabId).classList.toggle('primary', selected);
+      byId(tabId).classList.toggle('primary', selected && tabId !== 'homeTab');
       byId(tabId).setAttribute('aria-pressed', selected);
     }
   });
@@ -18,6 +18,7 @@ for (const [id, panel] of [['homeTab', 'homePanel'], ['learnTab', 'learnPanel'],
 
 function renderHome() {
   const next = lessons.findIndex((lesson, index) => !records[lesson.id]);
+  byId('continueLearning').textContent = next < 0 ? 'Review your lessons' : 'Continue learning';
   byId('nextLessonName').textContent = next < 0 ? 'All lessons complete. Keep building your rhythm.' : 'Up next: ' + lessons[next].title;
   byId('homeBest').textContent = best || '—';
   byId('homeAccuracy').textContent = rounds.length ? Math.round(rounds.reduce((sum, r) => sum + r.percent, 0) / rounds.length) + '%' : '—';
@@ -35,5 +36,8 @@ byId('homeDaily').onclick = () => { switchMode('daily'); byId('testTab').click()
 byId('homeArcade').onclick = () => byId('arcTab').click();
 function applyTheme(theme) { document.documentElement.dataset.theme = theme; byId('themeToggle').textContent = theme === 'dark' ? 'Light theme' : 'Dark theme'; byId('themeToggle').setAttribute('aria-label','Switch to ' + (theme === 'dark' ? 'light' : 'dark') + ' theme'); }
 try { applyTheme(localStorage.getItem('keysprout-theme') || 'light'); } catch { applyTheme('light'); }
-byId('themeToggle').onclick = () => { const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; applyTheme(theme); try { localStorage.setItem('keysprout-theme',theme); } catch {} };
+function setTheme(theme) { applyTheme(theme); byId('settingTheme').value=theme; try { localStorage.setItem('keysprout-theme',theme); } catch {} }
+byId('themeToggle').onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 renderHome();
+
+window.addEventListener('pagehide',()=>{if(timer)clearRound();if(arcTick)stopArcade(false);if(active)resetLesson(lessonIndex);});
